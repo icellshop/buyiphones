@@ -1,6 +1,4 @@
 const express = require('express');
-const path = require('path');
-const fs = require('fs');
 const axios = require('axios');
 require('dotenv').config();
 
@@ -13,7 +11,6 @@ app.use(express.urlencoded({ extended: true }));
 
 // ==== Endpoint para validar dirección con Google Geocoding API ====
 app.post('/validar-direccion', async (req, res) => {
-  // Mostrar en la respuesta lo que recibe el backend y cómo arma la dirección
   let address = req.body.address;
 
   // Si el frontend manda los campos separados, también los acepta:
@@ -22,13 +19,8 @@ app.post('/validar-direccion', async (req, res) => {
     if (!street1 || !city || !state || !zip) {
       return res.status(400).json({ error: 'Faltan campos de dirección', recibido: req.body });
     }
-    // Agrega country US al final para mejor precisión
     address = `${street1}, ${street2 ? street2 + ', ' : ''}${city}, ${state}, ${zip}, US`;
   }
-
-  // Devuelve en la respuesta lo que arma para depuración
-  // Puedes dejar este bloque o quitarlo luego de depurar
-  // return res.json({ recibido: req.body, addressFinal: address });
 
   try {
     const apiKey = process.env.GOOGLE_API_KEY;
@@ -37,9 +29,18 @@ app.post('/validar-direccion', async (req, res) => {
     });
 
     if (response.data.status === 'OK' && response.data.results.length > 0) {
-      return res.json({ status: 'valid', datos: response.data.results[0], addressSent: address });
+      return res.json({
+        status: 'valid',
+        datos: response.data.results[0],
+        addressSent: address
+      });
     } else {
-      return res.json({ status: 'invalid', message: 'Dirección no encontrada', addressSent: address, recibido: req.body });
+      return res.json({
+        status: 'invalid',
+        message: 'Dirección no encontrada',
+        addressSent: address,
+        recibido: req.body
+      });
     }
   } catch (error) {
     return res.status(500).json({ error: 'Error al consultar Google', details: error.message });
