@@ -98,9 +98,7 @@
     </div>
   </div>
   <script>
-    // ...Todo tu código JS igual hasta la declaración de funciones...
-
-    // --- Agrega al inicio del script estos objetos para el remitente y paquete ---
+    // Remitente fijo y dimensiones/paquete fijos
     const DEFAULT_FROM_ADDRESS = {
       name: "ICellShop",
       street1: "2506 E COWAN CIR",
@@ -119,12 +117,150 @@
       weight: 500
     };
 
-    // ...Todo tu código hasta el submit del formulario...
+    if (!window.formState) window.formState = {
+      nombre: "",
+      contacto: "",
+      autocomplete: "",
+      street1: "",
+      street2: "",
+      city: "",
+      state: "",
+      zip: ""
+    };
+    if (!window.paymentButtonState) window.paymentButtonState = {
+      selected: null,
+      confirmValue: "",
+      error: ""
+    };
 
-    // En el addEventListener('submit',...) de tu formulario, REEMPLAZA el fetch a /generar-etiqueta por este:
+    const modelImages = {
+      "iPhone 13": "https://www.apple.com/v/iphone-13/f/images/overview/hero/hero_static__e6khcva4hkeq_large.jpg",
+      "iPhone 13 Pro": "https://www.apple.com/v/iphone-13-pro/f/images/overview/design/finishes_1_graphite__f7wnch6y6cya_large.jpg",
+      "iPhone 12": "https://www.apple.com/v/iphone-12/f/images/overview/hero/hero_static__e6khcva4hkeq_large.jpg",
+      "iPhone 11": "https://www.apple.com/v/iphone-11/f/images/overview/hero/hero_static__b1x5w6q3v6y6_large.jpg",
+      "iPhone XR": "https://www.apple.com/v/iphone-xr/f/images/overview/hero/hero_static__e6khcva4hkeq_large.jpg"
+    };
+    const carrierImages = {
+      "AT&T": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5e/AT%26T_logo_2016.svg/320px-AT%26T_logo_2016.svg.png",
+      "Verizon": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6b/Verizon_2015_logo_-vector.svg/320px-Verizon_2015_logo_-vector.svg.png",
+      "T-Mobile": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2e/T-Mobile_logo_2022.svg/320px-T-Mobile_logo_2022.svg.png",
+      "Unlocked": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/55/Unlocked_padlock_icon.png/200px-Unlocked_padlock_icon.png"
+    };
+    const paymentMethods = [
+      {
+        label: "Zelle",
+        value: "Zelle",
+        img: "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5b/Zelle_logo.svg/320px-Zelle_logo.svg.png",
+        placeholder: "Correo o teléfono asociado a Zelle"
+      },
+      {
+        label: "PayPal",
+        value: "PayPal",
+        img: "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b5/PayPal.svg/320px-PayPal.svg.png",
+        placeholder: "Correo de tu cuenta PayPal"
+      },
+      {
+        label: "CashApp",
+        value: "CashApp",
+        img: "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2c/Cash_App_Logo.svg/320px-Cash_App_Logo.svg.png",
+        placeholder: "Usuario $cashtag o teléfono asociado"
+      },
+      {
+        label: "Wire Transfer",
+        value: "Wire Transfer",
+        img: "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9c/Bank_font_awesome.svg/240px-Bank_font_awesome.svg.png",
+        placeholder: "Cuenta bancaria o routing number"
+      }
+    ];
+    const ENDPOINT = 'https://script.google.com/macros/s/AKfycbyEb0QH7Z7Ucg9dfg0JqYGj51H57cNElfLSCu-vhGR_T8Yh9dgjMqjMpEVjaKcva3UC_w/exec';
+    const STEPS = [
+      { key: 'model',      label: 'Selecciona el modelo',    withImage: true, images: modelImages },
+      { key: 'carrier',    label: 'Selecciona la compañía',  withImage: true, images: carrierImages },
+      { key: 'storage',    label: 'Selecciona la capacidad', withImage: false },
+      { key: 'condition',  label: 'Selecciona la condición', withImage: false }
+    ];
+    let offers = [];
+    let selection = { model:null, carrier:null, storage:null, condition:null };
+    let openStep = 0;
+    let showForm = false;
+    let formSubmitted = false;
+    let formError = '';
+    let formValidating = false;
+    let lastResumenData = null;
+
+    function isValidEmail(email) {
+      return /^[\w\.\-]+@([\w\-]+\.)+[a-zA-Z]{2,}$/.test(email.trim());
+    }
+    function isValidPhone(phone) {
+      return /^(\+?1)?\d{10}$/.test(phone.replace(/[^\d]/g,''));
+    }
+
+    function unique(arr, key) {
+      return [...new Set(arr.map(x => x[key]))];
+    }
+    function getFilteredOptions(stepIdx) {
+      let filtered = offers;
+      for (let i=0; i<stepIdx; ++i) {
+        const k = STEPS[i].key;
+        if (selection[k]) filtered = filtered.filter(o => o[k] === selection[k]);
+      }
+      return unique(filtered, STEPS[stepIdx].key);
+    }
+
+    function renderPaymentButtons(paymentSelected, confirmValue, onSelect, onConfirmChange, errorMsg) {
+      const wrapper = document.createElement('div');
+      const btnList = document.createElement('div');
+      btnList.className = 'payment-methods-list';
+      paymentMethods.forEach(p => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'payment-method-btn' + (paymentSelected && paymentSelected.value === p.value ? ' selected':'');
+        btn.innerHTML = `<img class="payment-method-img" src="${p.img}" alt="${p.label}"> ${p.label}`;
+        btn.onclick = () => { onSelect(p); };
+        btnList.appendChild(btn);
+      });
+      wrapper.appendChild(btnList);
+
+      if (paymentSelected) {
+        const confirmDiv = document.createElement('div');
+        confirmDiv.className = 'payment-confirm-group';
+        const lbl = document.createElement('label');
+        lbl.className = 'payment-confirm-label';
+        lbl.setAttribute('for', 'paymentConfirmInput');
+        lbl.textContent = `Confirma ${paymentSelected.placeholder.toLowerCase()}`;
+        confirmDiv.appendChild(lbl);
+        const inp = document.createElement('input');
+        inp.className = 'payment-confirm-input';
+        inp.id = 'paymentConfirmInput';
+        inp.name = 'paymentConfirmInput';
+        inp.required = true;
+        inp.placeholder = paymentSelected.placeholder;
+        inp.value = confirmValue;
+        inp.oninput = e => onConfirmChange(e.target.value);
+        confirmDiv.appendChild(inp);
+        if (errorMsg) {
+          const err = document.createElement('div');
+          err.className = 'form-error';
+          err.textContent = errorMsg;
+          confirmDiv.appendChild(err);
+        }
+        wrapper.appendChild(confirmDiv);
+      }
+      return wrapper;
+    }
+
+    // ... resto de código igual, renderSteps y funciones ...
+
+    // Dentro de la función setTimeout (donde se agrega el submit), reemplaza el fetch de /generar-etiqueta por este:
+    // El submit del formulario es el único cambio relevante, lo demás igual a tu código original.
+    // Para claridad, aquí sólo está el fragmento modificado:
+    // Busca este bloque en tu código:
+    // fetch('/generar-etiqueta', { ... body: JSON.stringify({ ... }) ... })
+    // y reemplázalo por este:
+    // --- INICIO BLOQUE MODIFICADO ---
     document.getElementById('sellForm')?.addEventListener('submit', async function(e){
       e.preventDefault();
-      // ...validaciones igual que antes...
+      // Validación avanzada antes de enviar:
       if (!validateContactoField()) return;
       if (paymentConfirmInput) paymentConfirmInput.dispatchEvent(new Event('input'));
       if (paymentErrorDiv && paymentErrorDiv.textContent) return;
@@ -164,7 +300,6 @@
         if (data.status === 'valid') {
           document.getElementById('etiquetaResult').innerHTML = "Generando etiqueta...";
           try {
-            // --- Aquí el cambio importante: ahora SÍ mandas from_address y parcel ---
             const etiquetaResp = await fetch('/generar-etiqueta', {
               method: 'POST',
               headers: {'Content-Type':'application/json'},
@@ -177,8 +312,7 @@
                   state,
                   zip,
                   country: "US",
-                  phone: contacto,
-                  email: contacto
+                  phone: contacto
                 },
                 from_address: DEFAULT_FROM_ADDRESS,
                 parcel: DEFAULT_PARCEL,
@@ -244,9 +378,22 @@
         renderSteps();
       }
     });
+    // --- FIN BLOQUE MODIFICADO ---
 
-    // ...El resto de tu JS igual (renderSteps, renderSummaryPage, etc)...
-    // ...No olvides dejar tu inicialización de la app y demás funciones igual...
+    // ... resto del código igual (renderSteps, renderSummaryPage, init, etc.) ...
+    // No olvides dejar todo el JS restante igual.
+    (async function init(){
+      try {
+        const res = await fetch(ENDPOINT);
+        const data = await res.json();
+        offers = Array.isArray(data) ? data : (Array.isArray(data.offers) ? data.offers : []);
+      } catch (e) {
+        offers = [];
+        document.getElementById('steps').innerHTML = `<div class="error-msg">Error al cargar datos.</div>`;
+        return;
+      }
+      renderSteps();
+    })();
   </script>
 </body>
 </html>
