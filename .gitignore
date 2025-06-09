@@ -8,21 +8,48 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Environment variables
-.env
-
-# OS generated files
+# OS
 .DS_Store
 Thumbs.db
 
-# Coverage directory used by tools like istanbul
+# Env files
+.env
+.env.*
+!.env.example
+
+# Editor directories and files
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# Test coverage
 coverage/
+
+# Build output
+dist/
+build/
 
 # Optional npm cache directory
 .npm
 
-# Optional eslint cache
-.eslintcache
+# BFG and history cleaning files
+bfg-replace.txt
 
-# VSCode settings
-.vscode/
+# Misc
+*.tgz
+*.swp
+
+# Local environment
+*.local
+
+# Ignore next.config.js if using Next.js and want to keep server secrets private
+# next.config.js
+
+# Ignore Mac system files
+.AppleDouble
+.LSOverride
+
+# Ignore Windows system files
+ehthumbs.db
+Desktop.ini
