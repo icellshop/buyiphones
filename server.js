@@ -1,7 +1,7 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
-const axios = require('axios'); // <-- Nuevo
+const axios = require('axios');
 require('dotenv').config();
 
 const app = express();
@@ -22,11 +22,12 @@ app.use('/pdfs', express.static(pdfsDir));
 
 // ==== API para validar dirección con Google ====
 app.post('/validar-direccion', async (req, res) => {
-  const { address } = req.body;
-  if (!address) {
-    return res.status(400).json({ error: 'Falta el campo address' });
+  const { street1, street2, city, state, zip } = req.body;
+  if (!street1 || !city || !state || !zip) {
+    return res.status(400).json({ error: 'Faltan campos de dirección' });
   }
 
+  let address = `${street1}, ${street2 ? street2 + ', ' : ''}${city}, ${state}, ${zip}`;
   try {
     const apiKey = process.env.GOOGLE_API_KEY;
     const response = await axios.get('https://maps.googleapis.com/maps/api/geocode/json', {
@@ -38,10 +39,10 @@ app.post('/validar-direccion', async (req, res) => {
 
     if (response.data.status === 'OK' && response.data.results.length > 0) {
       // Dirección válida
-      return res.json({ valido: true, datos: response.data.results[0] });
+      return res.json({ status: 'valid', datos: response.data.results[0] });
     } else {
       // Dirección inválida
-      return res.json({ valido: false, error: 'Dirección no encontrada' });
+      return res.json({ status: 'invalid', message: 'Dirección no encontrada' });
     }
   } catch (error) {
     return res.status(500).json({ error: 'Error al consultar Google' });
