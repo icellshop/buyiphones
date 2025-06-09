@@ -1,40 +1,61 @@
-require('dotenv').config();
 const express = require('express');
 const path = require('path');
-const bodyParser = require('body-parser');
-
-// Importa tu función de generación de etiquetas (ajusta el path si es necesario)
-const generarEtiqueta = require('./generarEtiqueta');
+const fs = require('fs');
+require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware para parsear JSON
-app.use(bodyParser.json());
+// Middleware para parsear JSON y URL-encoded
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// Hacer pública la carpeta /public/pdfs (¡asegúrate de que exista!)
-app.use('/pdfs', express.static(path.join(__dirname, 'public', 'pdfs')));
+// === Crear la carpeta public/pdfs si no existe ===
+const pdfsDir = path.join(__dirname, 'public', 'pdfs');
+if (!fs.existsSync(pdfsDir)) {
+  fs.mkdirSync(pdfsDir, { recursive: true });
+}
 
-// Ruta básica de prueba
-app.get('/', (req, res) => {
-  res.send('¡Servidor Express en línea y PDFs públicos!');
+// === Servir la carpeta public/pdfs de forma pública ===
+app.use('/pdfs', express.static(pdfsDir));
+
+// ==== TUS APIS van aquí ====
+
+app.post('/generar-pdf', async (req, res) => {
+  const { content, filename } = req.body;
+  if (!content || !filename) return res.status(400).json({ error: 'Faltan datos: content y filename' });
+
+  const filePath = path.join(pdfsDir, filename);
+  fs.writeFileSync(filePath, content);
+
+  res.json({ url: `/pdfs/${filename}` });
 });
 
-// Endpoint para generar la etiqueta
-app.post('/api/generar-etiqueta', async (req, res) => {
-  try {
-    const resultado = await generarEtiqueta(req.body);
-    // Añade la URL pública del PDF generado, si tu función la devuelve
-    if (resultado && resultado.pdfFileName) {
-      resultado.download_url = `${req.protocol}://${req.get('host')}/pdfs/${resultado.pdfFileName}`;
-    }
-    res.json(resultado);
-  } catch (err) {
-    res.status(500).json({ status: 'error', message: err.message || 'Error desconocido' });
+app.get('/descargar/:pdf', (req, res) => {
+  const pdfName = req.params.pdf;
+  const filePath = path.join(pdfsDir, pdfName);
+  if (!fs.existsSync(filePath)) return res.status(404).send('PDF no encontrado');
+  res.download(filePath);
+});
+
+// ==== SERVIR TU FRONTEND ====
+
+const frontendPath = path.join(__dirname, 'build'); // Cambia 'build' si tu carpeta es diferente
+app.use(express.static(frontendPath));
+
+// Para cualquier ruta que NO sea /pdfs ni /generar-pdf ni /descargar, devuelve index.html (SPA)
+app.get('*', (req, res) => {
+  if (
+    req.path.startsWith('/pdfs') ||
+    req.path.startsWith('/generar-pdf') ||
+    req.path.startsWith('/descargar')
+  ) {
+    return res.status(404).end();
   }
+  res.sendFile(path.join(frontendPath, 'index.html'));
 });
 
-// Iniciar el servidor
+// INICIAR SERVIDOR
 app.listen(PORT, () => {
-  console.log(`Servidor escuchando en http://localhost:${PORT}`);
+  console.log(`Servidor Express escuchando en puerto ${PORT}`);
 });
