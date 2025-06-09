@@ -9,7 +9,12 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ==== Endpoint para validar dirección con Google Geocoding API ====
+// Mensaje simple en la raíz para evitar error 404
+app.get('/', (req, res) => {
+  res.send('API buyiphones funcionando');
+});
+
+// Endpoint para validar dirección con Google Geocoding API
 app.post('/validar-direccion', async (req, res) => {
   let address = req.body.address;
 
@@ -47,7 +52,7 @@ app.post('/validar-direccion', async (req, res) => {
   }
 });
 
-// ==== INICIAR SERVIDOR ====
+// Iniciar el servidor
 app.listen(PORT, () => {
   console.log(`Servidor Express escuchando en puerto ${PORT}`);
 });
