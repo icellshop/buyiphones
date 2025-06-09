@@ -11,46 +11,45 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Servir carpeta de PDFs de forma pública
-// Puedes acceder a los PDFs con: https://TU-APP.onrender.com/pdfs/nombre.pdf
 app.use('/pdfs', express.static(path.join(__dirname, 'pdfs')));
 
-// Ruta de inicio simple
-app.get('/', (req, res) => {
-  res.send('¡Servidor Express en línea y PDFs públicos!');
-});
+// ==== TUS APIS van aquí ====
 
-// Ejemplo de endpoint para generar un PDF (placeholder, adapta a tu lógica)
 app.post('/generar-pdf', async (req, res) => {
   const { content, filename } = req.body;
+  if (!content || !filename) return res.status(400).json({ error: 'Faltan datos: content y filename' });
 
-  if (!content || !filename) {
-    return res.status(400).json({ error: 'Faltan datos: content y filename' });
-  }
-
-  // Aquí deberías generar el PDF usando tu librería preferida (ej: pdfkit, puppeteer, etc).
-  // Este es un ejemplo que solo guarda el texto como .txt para ilustrar:
   const pdfsDir = path.join(__dirname, 'pdfs');
   if (!fs.existsSync(pdfsDir)) fs.mkdirSync(pdfsDir);
-
   const filePath = path.join(pdfsDir, filename);
   fs.writeFileSync(filePath, content);
 
   res.json({ url: `/pdfs/${filename}` });
 });
 
-// Endpoint para descargar un PDF específico (descarga forzada)
 app.get('/descargar/:pdf', (req, res) => {
   const pdfName = req.params.pdf;
   const filePath = path.join(__dirname, 'pdfs', pdfName);
-
-  if (!fs.existsSync(filePath)) {
-    return res.status(404).send('PDF no encontrado');
-  }
-
+  if (!fs.existsSync(filePath)) return res.status(404).send('PDF no encontrado');
   res.download(filePath);
 });
 
-// Iniciar el servidor
+// ==== SERVIR TU FRONTEND ====
+
+const frontendPath = path.join(__dirname, 'build'); // Cambia 'build' si tu carpeta es diferente
+
+// Servir archivos estáticos de la build del frontend
+app.use(express.static(frontendPath));
+
+// Para cualquier ruta que no sea API ni /pdfs, devuelve index.html (SPA)
+app.get('*', (req, res) => {
+  // Si la ruta es para una API o PDFs, no devolver index.html
+  if (req.path.startsWith('/api') || req.path.startsWith('/pdfs')) return res.status(404).end();
+
+  res.sendFile(path.join(frontendPath, 'index.html'));
+});
+
+// INICIAR SERVIDOR
 app.listen(PORT, () => {
   console.log(`Servidor Express escuchando en puerto ${PORT}`);
 });
