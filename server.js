@@ -41,11 +41,16 @@ const frontendPath = path.join(__dirname, 'build'); // Cambia 'build' si tu carp
 // Servir archivos estáticos de la build del frontend
 app.use(express.static(frontendPath));
 
-// Para cualquier ruta que no sea API ni /pdfs, devuelve index.html (SPA)
+// Para cualquier ruta que NO sea /pdfs ni /generar-pdf ni /descargar, devuelve index.html (SPA)
 app.get('*', (req, res) => {
-  // Si la ruta es para una API o PDFs, no devolver index.html
-  if (req.path.startsWith('/api') || req.path.startsWith('/pdfs')) return res.status(404).end();
-
+  // Evitar conflicto con rutas de APIs o PDFs
+  if (
+    req.path.startsWith('/pdfs') ||
+    req.path.startsWith('/generar-pdf') ||
+    req.path.startsWith('/descargar')
+  ) {
+    return res.status(404).end();
+  }
   res.sendFile(path.join(frontendPath, 'index.html'));
 });
 
