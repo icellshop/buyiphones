@@ -73,7 +73,7 @@ app.post('/generar-etiqueta', async (req, res) => {
       parcel: parcel,
     });
 
-    // Selecciona la tarifa más barata disponible (o la primera, según tu lógica)
+    // Selecciona la tarifa más barata disponible (o la primera)
     const rate = shipment.rates && shipment.rates.length > 0 ? shipment.rates[0] : null;
 
     if (!rate) {
@@ -84,10 +84,9 @@ app.post('/generar-etiqueta', async (req, res) => {
       });
     }
 
-    // Comprar la etiqueta (obligatorio para obtener el PDF)
-    shipment = await shipment.buy(rate);
+    // COMPRA la etiqueta usando el método correcto según la documentación
+    shipment = await api.Shipment.buy(shipment.id, rate);
 
-    // Devuelve el link directo al PDF y el tracking code
     res.json({
       status: 'success',
       label_url: shipment.postage_label ? shipment.postage_label.label_url : null,
