@@ -21,9 +21,12 @@ app.use('/pdfs', express.static(pdfsDir));
 
 // ==== TUS APIS van aquí ====
 
+// API para generar PDF (simple ejemplo, puedes usar pdfkit o similar para PDF real)
 app.post('/generar-pdf', async (req, res) => {
   const { content, filename } = req.body;
-  if (!content || !filename) return res.status(400).json({ error: 'Faltan datos: content y filename' });
+  if (!content || !filename) {
+    return res.status(400).json({ error: 'Faltan datos: content y filename' });
+  }
 
   const filePath = path.join(pdfsDir, filename);
   fs.writeFileSync(filePath, content);
@@ -31,27 +34,24 @@ app.post('/generar-pdf', async (req, res) => {
   res.json({ url: `/pdfs/${filename}` });
 });
 
+// API para descargar PDF
 app.get('/descargar/:pdf', (req, res) => {
   const pdfName = req.params.pdf;
   const filePath = path.join(pdfsDir, pdfName);
-  if (!fs.existsSync(filePath)) return res.status(404).send('PDF no encontrado');
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).send('PDF no encontrado');
+  }
   res.download(filePath);
 });
 
 // ==== SERVIR TU FRONTEND ====
 
-const frontendPath = path.join(__dirname, 'build'); // Cambia 'build' si tu carpeta es diferente
+// Cambia 'build' si tu carpeta de frontend tiene otro nombre
+const frontendPath = path.join(__dirname, 'build');
 app.use(express.static(frontendPath));
 
 // Para cualquier ruta que NO sea /pdfs ni /generar-pdf ni /descargar, devuelve index.html (SPA)
-app.get('*', (req, res) => {
-  if (
-    req.path.startsWith('/pdfs') ||
-    req.path.startsWith('/generar-pdf') ||
-    req.path.startsWith('/descargar')
-  ) {
-    return res.status(404).end();
-  }
+app.get(/^\/(?!pdfs\/|generar-pdf$|descargar\/).*/, (req, res) => {
   res.sendFile(path.join(frontendPath, 'index.html'));
 });
 
