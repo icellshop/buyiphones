@@ -1,22 +1,21 @@
 {
-  "name": "validardireccion",
+  "name": "icellshop-backend",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Backend para generación de etiquetas y notificación por email para ICellShop",
+  "main": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node server.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
   "dependencies": {
-    "@easypost/api": "^8.1.0",
-    "cors": "^2.8.5",
-    "dotenv": "^16.5.0",
-    "express": "^4.19.2",
-    "form-data": "^4.0.3",
-    "mailgun.js": "^12.0.2",
-    "pdfkit": "^0.17.1"
-  }
+    "@easypost/api": "^4.12.0",
+    "axios": "^1.6.0",
+    "dotenv": "^16.0.3",
+    "express": "^4.18.2",
+    "mailgun-js": "^0.22.0"
+  },
+  "engines": {
+    "node": ">=16"
+  },
+  "author": "ICellShop",
+  "license": "MIT"
 }
