@@ -98,579 +98,155 @@
     </div>
   </div>
   <script>
-    if (!window.formState) window.formState = {
-      nombre: "",
-      contacto: "",
-      autocomplete: "",
-      street1: "",
+    // ...Todo tu código JS igual hasta la declaración de funciones...
+
+    // --- Agrega al inicio del script estos objetos para el remitente y paquete ---
+    const DEFAULT_FROM_ADDRESS = {
+      name: "ICellShop",
+      street1: "2506 E COWAN CIR",
       street2: "",
-      city: "",
-      state: "",
-      zip: ""
+      city: "Phoenix",
+      state: "AZ",
+      zip: "85050",
+      country: "US",
+      phone: "555-123-4567",
+      email: "icellshop@correo.com"
     };
-    if (!window.paymentButtonState) window.paymentButtonState = {
-      selected: null,
-      confirmValue: "",
-      error: ""
+    const DEFAULT_PARCEL = {
+      length: 20,
+      width: 15,
+      height: 10,
+      weight: 500
     };
 
-    const modelImages = {
-      "iPhone 13": "https://www.apple.com/v/iphone-13/f/images/overview/hero/hero_static__e6khcva4hkeq_large.jpg",
-      "iPhone 13 Pro": "https://www.apple.com/v/iphone-13-pro/f/images/overview/design/finishes_1_graphite__f7wnch6y6cya_large.jpg",
-      "iPhone 12": "https://www.apple.com/v/iphone-12/f/images/overview/hero/hero_static__e6khcva4hkeq_large.jpg",
-      "iPhone 11": "https://www.apple.com/v/iphone-11/f/images/overview/hero/hero_static__b1x5w6q3v6y6_large.jpg",
-      "iPhone XR": "https://www.apple.com/v/iphone-xr/f/images/overview/hero/hero_static__e6khcva4hkeq_large.jpg"
-    };
-    const carrierImages = {
-      "AT&T": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5e/AT%26T_logo_2016.svg/320px-AT%26T_logo_2016.svg.png",
-      "Verizon": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6b/Verizon_2015_logo_-vector.svg/320px-Verizon_2015_logo_-vector.svg.png",
-      "T-Mobile": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2e/T-Mobile_logo_2022.svg/320px-T-Mobile_logo_2022.svg.png",
-      "Unlocked": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/55/Unlocked_padlock_icon.png/200px-Unlocked_padlock_icon.png"
-    };
-    const paymentMethods = [
-      {
-        label: "Zelle",
-        value: "Zelle",
-        img: "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5b/Zelle_logo.svg/320px-Zelle_logo.svg.png",
-        placeholder: "Correo o teléfono asociado a Zelle"
-      },
-      {
-        label: "PayPal",
-        value: "PayPal",
-        img: "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b5/PayPal.svg/320px-PayPal.svg.png",
-        placeholder: "Correo de tu cuenta PayPal"
-      },
-      {
-        label: "CashApp",
-        value: "CashApp",
-        img: "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2c/Cash_App_Logo.svg/320px-Cash_App_Logo.svg.png",
-        placeholder: "Usuario $cashtag o teléfono asociado"
-      },
-      {
-        label: "Wire Transfer",
-        value: "Wire Transfer",
-        img: "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9c/Bank_font_awesome.svg/240px-Bank_font_awesome.svg.png",
-        placeholder: "Cuenta bancaria o routing number"
-      }
-    ];
-    const ENDPOINT = 'https://script.google.com/macros/s/AKfycbyEb0QH7Z7Ucg9dfg0JqYGj51H57cNElfLSCu-vhGR_T8Yh9dgjMqjMpEVjaKcva3UC_w/exec';
-    const STEPS = [
-      { key: 'model',      label: 'Selecciona el modelo',    withImage: true, images: modelImages },
-      { key: 'carrier',    label: 'Selecciona la compañía',  withImage: true, images: carrierImages },
-      { key: 'storage',    label: 'Selecciona la capacidad', withImage: false },
-      { key: 'condition',  label: 'Selecciona la condición', withImage: false }
-    ];
-    let offers = [];
-    let selection = { model:null, carrier:null, storage:null, condition:null };
-    let openStep = 0;
-    let showForm = false;
-    let formSubmitted = false;
-    let formError = '';
-    let formValidating = false;
-    let lastResumenData = null;
+    // ...Todo tu código hasta el submit del formulario...
 
-    function isValidEmail(email) {
-      return /^[\w\.\-]+@([\w\-]+\.)+[a-zA-Z]{2,}$/.test(email.trim());
-    }
-    function isValidPhone(phone) {
-      return /^(\+?1)?\d{10}$/.test(phone.replace(/[^\d]/g,''));
-    }
-
-    function unique(arr, key) {
-      return [...new Set(arr.map(x => x[key]))];
-    }
-    function getFilteredOptions(stepIdx) {
-      let filtered = offers;
-      for (let i=0; i<stepIdx; ++i) {
-        const k = STEPS[i].key;
-        if (selection[k]) filtered = filtered.filter(o => o[k] === selection[k]);
-      }
-      return unique(filtered, STEPS[stepIdx].key);
-    }
-
-    function renderPaymentButtons(paymentSelected, confirmValue, onSelect, onConfirmChange, errorMsg) {
-      const wrapper = document.createElement('div');
-      const btnList = document.createElement('div');
-      btnList.className = 'payment-methods-list';
-      paymentMethods.forEach(p => {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'payment-method-btn' + (paymentSelected && paymentSelected.value === p.value ? ' selected':'');
-        btn.innerHTML = `<img class="payment-method-img" src="${p.img}" alt="${p.label}"> ${p.label}`;
-        btn.onclick = () => { onSelect(p); };
-        btnList.appendChild(btn);
-      });
-      wrapper.appendChild(btnList);
-
-      if (paymentSelected) {
-        const confirmDiv = document.createElement('div');
-        confirmDiv.className = 'payment-confirm-group';
-        const lbl = document.createElement('label');
-        lbl.className = 'payment-confirm-label';
-        lbl.setAttribute('for', 'paymentConfirmInput');
-        lbl.textContent = `Confirma ${paymentSelected.placeholder.toLowerCase()}`;
-        confirmDiv.appendChild(lbl);
-        const inp = document.createElement('input');
-        inp.className = 'payment-confirm-input';
-        inp.id = 'paymentConfirmInput';
-        inp.name = 'paymentConfirmInput';
-        inp.required = true;
-        inp.placeholder = paymentSelected.placeholder;
-        inp.value = confirmValue;
-        inp.oninput = e => onConfirmChange(e.target.value);
-        confirmDiv.appendChild(inp);
-        if (errorMsg) {
-          const err = document.createElement('div');
-          err.className = 'form-error';
-          err.textContent = errorMsg;
-          confirmDiv.appendChild(err);
-        }
-        wrapper.appendChild(confirmDiv);
-      }
-      return wrapper;
-    }
-
-    function renderSteps() {
-      const stepsDiv = document.getElementById('steps');
-      stepsDiv.innerHTML = '';
-      if (!offers || offers.length === 0) {
-        stepsDiv.innerHTML = `<div class="loading">Cargando datos...</div>`;
+    // En el addEventListener('submit',...) de tu formulario, REEMPLAZA el fetch a /generar-etiqueta por este:
+    document.getElementById('sellForm')?.addEventListener('submit', async function(e){
+      e.preventDefault();
+      // ...validaciones igual que antes...
+      if (!validateContactoField()) return;
+      if (paymentConfirmInput) paymentConfirmInput.dispatchEvent(new Event('input'));
+      if (paymentErrorDiv && paymentErrorDiv.textContent) return;
+      const nombre = document.getElementById('nombre').value;
+      const contacto = document.getElementById('contacto').value;
+      const street1 = document.getElementById('street1').value;
+      const street2 = document.getElementById('street2').value;
+      const city = document.getElementById('city').value;
+      const state = document.getElementById('state').value;
+      const zip = document.getElementById('zip').value;
+      const payment = window.paymentButtonState.selected;
+      const paymentValue = window.paymentButtonState.confirmValue;
+      if (!payment) {
+        window.paymentButtonState.error = "Selecciona el método de pago.";
+        renderSteps();
         return;
       }
-      STEPS.forEach((step, idx) => {
-        if (idx > 0 && !selection[STEPS[idx-1].key]) return;
-        const section = document.createElement('div');
-        section.className = 'step' + (openStep === idx ? ' active':'');
-        const header = document.createElement('button');
-        header.type = 'button';
-        header.className = 'step-header' + (openStep === idx ? ' active':'');
-        header.tabIndex = 0;
-        header.innerHTML = step.label + (selection[step.key] ? `: <span style="color:var(--accent);font-weight:700;">${selection[step.key]}</span>`:'');
-        header.onclick = () => {
-          openStep = idx;
-          showForm = false;
-          renderSteps();
-        };
-        section.appendChild(header);
-        const content = document.createElement('div');
-        content.className = 'step-content';
-        if (openStep === idx) {
-          const options = getFilteredOptions(idx);
-          const cardList = document.createElement('div');
-          cardList.className = 'card-list';
-          options.forEach(opt => {
-            const card = document.createElement('button');
-            card.type = 'button';
-            card.className = 'card' + (selection[step.key] === opt ? ' selected':'');
-            if (step.withImage && step.images && step.images[opt]) {
-              const img = document.createElement('img');
-              img.src = step.images[opt];
-              img.alt = opt;
-              img.className = 'card-img';
-              card.appendChild(img);
-            }
-            const label = document.createElement('span');
-            label.innerText = opt;
-            card.appendChild(label);
-            card.onclick = () => {
-              selection[step.key] = opt;
-              STEPS.slice(idx+1).forEach(s=>selection[s.key]=null);
-              showForm = false;
-              setTimeout(() => {
-                openStep = idx+1;
-                renderSteps();
-              }, 170);
-            };
-            cardList.appendChild(card);
-          });
-          content.appendChild(cardList);
-        }
-        section.appendChild(content);
-        stepsDiv.appendChild(section);
-      });
-      if (STEPS.every(s=>selection[s.key])) {
-        const resultSection = document.createElement('div');
-        resultSection.className = 'step active';
-        const match = offers.find(
-          o => o.model === selection.model && o.carrier === selection.carrier &&
-               o.storage === selection.storage && o.condition === selection.condition
-        );
-        if (match) {
-          resultSection.innerHTML = `<div class="result-offer">¡Tu oferta es:<br><strong>$${match.offer} USD</strong></div>`;
-          if (!showForm) {
-            const acceptBtn = document.createElement('button');
-            acceptBtn.className = 'accept-btn';
-            acceptBtn.textContent = 'Aceptar oferta';
-            acceptBtn.onclick = () => {
-              showForm = true;
-              formSubmitted = false;
-              formError = '';
-              renderSteps();
-            };
-            resultSection.appendChild(acceptBtn);
-          } else {
-            const formSection = document.createElement('div');
-            formSection.className = 'form-section';
-            if (formSubmitted) {
-              renderSummaryPage(lastResumenData);
-              return;
-            } else {
-              formSection.innerHTML = `
-                <form id="sellForm" autocomplete="off">
-                  <div class="form-group">
-                    <label for="nombre">Nombre completo</label>
-                    <input required id="nombre" name="nombre" type="text" autocomplete="name" />
-                  </div>
-                  <div class="form-group">
-                    <label for="autocomplete">Dirección de envío</label>
-                    <input id="autocomplete" type="text" placeholder="Empieza a escribir tu dirección..." autocomplete="off" required>
-                    <input id="street1" name="street1" type="hidden" required>
-                    <input id="street2" name="street2" type="hidden">
-                    <input id="city" name="city" type="hidden" required>
-                    <input id="state" name="state" type="hidden" required>
-                    <input id="zip" name="zip" type="hidden" required>
-                  </div>
-                  <div id="paymentButtonsContainer"></div>
-                  <div class="form-group">
-                    <label for="contacto">Correo o teléfono de contacto</label>
-                    <input required id="contacto" name="contacto" type="text" autocomplete="email"/>
-                  </div>
-                  <div class="form-note">
-                    <em>Solo se aceptan direcciones de USA.<br>Tu información es confidencial y solo se usará para procesar el pago y envío.</em>
-                  </div>
-                  <button class="submit-btn" type="submit" ${formValidating?'disabled':''}>${formValidating?'Validando dirección...':'Enviar información'}</button>
-                  ${formError ? `<div class="form-error">${formError}</div>` : ''}
-                  <div id="etiquetaResult" style="margin-top:1.2rem"></div>
-                </form>
-              `;
-              setTimeout(() => {
-                document.getElementById('nombre').value = window.formState.nombre || "";
-                document.getElementById('contacto').value = window.formState.contacto || "";
-                document.getElementById('autocomplete').value = window.formState.autocomplete || "";
-                document.getElementById('street1').value = window.formState.street1 || "";
-                document.getElementById('street2').value = window.formState.street2 || "";
-                document.getElementById('city').value = window.formState.city || "";
-                document.getElementById('state').value = window.formState.state || "";
-                document.getElementById('zip').value = window.formState.zip || "";
-                document.getElementById('nombre').oninput = e => window.formState.nombre = e.target.value;
-                document.getElementById('contacto').oninput = e => window.formState.contacto = e.target.value;
-                document.getElementById('autocomplete').oninput = e => window.formState.autocomplete = e.target.value;
-                ["street1","street2","city","state","zip"].forEach(id=>{
-                  document.getElementById(id).oninput = e => { window.formState[id] = e.target.value; };
-                });
-
-                let autocompleteObj = new google.maps.places.Autocomplete(
-                  document.getElementById('autocomplete'),
-                  { types: ['address'], componentRestrictions: {country: "us"} }
-                );
-                autocompleteObj.setFields(['address_components', 'formatted_address']);
-                autocompleteObj.addListener('place_changed', function() {
-                  const place = autocompleteObj.getPlace();
-                  let street1 = '', street2 = '', city = '', state = '', zip = '';
-                  for (const component of place.address_components) {
-                    const types = component.types;
-                    if (types.includes('street_number')) street1 = component.long_name + ' ' + street1;
-                    if (types.includes('route')) street1 += component.long_name;
-                    if (types.includes('subpremise')) street2 = component.long_name;
-                    if (types.includes('locality')) city = component.long_name;
-                    if (types.includes('administrative_area_level_1')) state = component.short_name;
-                    if (types.includes('postal_code')) zip = component.long_name;
-                  }
-                  document.getElementById('street1').value = street1.trim();
-                  document.getElementById('street2').value = street2;
-                  document.getElementById('city').value = city;
-                  document.getElementById('state').value = state;
-                  document.getElementById('zip').value = zip;
-                  window.formState.street1 = street1.trim();
-                  window.formState.street2 = street2;
-                  window.formState.city = city;
-                  window.formState.state = state;
-                  window.formState.zip = zip;
-                  window.formState.autocomplete = document.getElementById('autocomplete').value;
-                });
-
-                // VALIDACIÓN AVANZADA DE CORREO/TELÉFONO
-                let contactInput = document.getElementById('contacto');
-                let paymentMethod = window.paymentButtonState.selected;
-                let contactErrorDiv = null;
-                if (!document.getElementById('contacto-error')) {
-                  contactErrorDiv = document.createElement('div');
-                  contactErrorDiv.className = 'form-error';
-                  contactErrorDiv.id = 'contacto-error';
-                  contactInput.parentNode.appendChild(contactErrorDiv);
-                } else {
-                  contactErrorDiv = document.getElementById('contacto-error');
-                }
-                function validateContactoField() {
-                  let value = contactInput.value.trim();
-                  let errorMsg = '';
-                  if (paymentMethod) {
-                    if (paymentMethod.value === 'PayPal') {
-                      if (!isValidEmail(value)) errorMsg = 'Introduce un correo electrónico válido para PayPal.';
-                    } else if (paymentMethod.value === 'Zelle' || paymentMethod.value === 'CashApp') {
-                      if (!isValidEmail(value) && !isValidPhone(value)) errorMsg = 'Introduce un email o teléfono válido de USA.';
-                    } else if (paymentMethod.value === 'Wire Transfer') {
-                      if (value.length < 5) errorMsg = 'Introduce los datos bancarios completos.';
-                    }
-                  }
-                  contactErrorDiv.textContent = errorMsg;
-                  return !errorMsg;
-                }
-                contactInput.oninput = function() {
-                  window.formState.contacto = this.value;
-                  validateContactoField();
-                };
-                if (paymentMethod) validateContactoField();
-
-                // Validar el campo de confirmación de método de pago
-                let paymentConfirmInput = document.getElementById('paymentConfirmInput');
-                let paymentErrorDiv = paymentConfirmInput ? paymentConfirmInput.parentNode.querySelector('.form-error') : null;
-                if (paymentConfirmInput) {
-                  paymentConfirmInput.oninput = function() {
-                    window.paymentButtonState.confirmValue = this.value;
-                    let value = this.value.trim();
-                    let error = '';
-                    if (paymentMethod) {
-                      if (paymentMethod.value === 'PayPal') {
-                        if (!isValidEmail(value)) error = 'Introduce un correo electrónico válido para PayPal.';
-                      } else if (paymentMethod.value === 'Zelle' || paymentMethod.value === 'CashApp') {
-                        if (!isValidEmail(value) && !isValidPhone(value)) error = 'Introduce un email o teléfono válido de USA.';
-                      } else if (paymentMethod.value === 'Wire Transfer') {
-                        if (value.length < 5) error = 'Introduce los datos bancarios completos.';
-                      }
-                    }
-                    if (paymentErrorDiv) paymentErrorDiv.textContent = error;
-                  };
-                  paymentConfirmInput.dispatchEvent(new Event('input'));
-                }
-
-                const paymentButtonsContainer = document.getElementById('paymentButtonsContainer');
-                paymentButtonsContainer.innerHTML = '';
-                paymentButtonsContainer.appendChild(renderPaymentButtons(
-                  window.paymentButtonState.selected,
-                  window.paymentButtonState.confirmValue,
-                  (newSelected) => {
-                    window.paymentButtonState.selected = newSelected;
-                    window.paymentButtonState.confirmValue = "";
-                    window.paymentButtonState.error = "";
-                    window.formState.nombre = document.getElementById('nombre').value;
-                    window.formState.contacto = document.getElementById('contacto').value;
-                    window.formState.autocomplete = document.getElementById('autocomplete').value;
-                    window.formState.street1 = document.getElementById('street1').value;
-                    window.formState.street2 = document.getElementById('street2').value;
-                    window.formState.city = document.getElementById('city').value;
-                    window.formState.state = document.getElementById('state').value;
-                    window.formState.zip = document.getElementById('zip').value;
-                    renderSteps();
-                  },
-                  (newConfirmValue) => {
-                    window.paymentButtonState.confirmValue = newConfirmValue;
-                  },
-                  window.paymentButtonState.error
-                ));
-                document.getElementById('sellForm')?.addEventListener('submit', async function(e){
-                  e.preventDefault();
-                  // Validación avanzada antes de enviar:
-                  if (!validateContactoField()) return;
-                  if (paymentConfirmInput) paymentConfirmInput.dispatchEvent(new Event('input'));
-                  if (paymentErrorDiv && paymentErrorDiv.textContent) return;
-                  const nombre = document.getElementById('nombre').value;
-                  const contacto = document.getElementById('contacto').value;
-                  const street1 = document.getElementById('street1').value;
-                  const street2 = document.getElementById('street2').value;
-                  const city = document.getElementById('city').value;
-                  const state = document.getElementById('state').value;
-                  const zip = document.getElementById('zip').value;
-                  const payment = window.paymentButtonState.selected;
-                  const paymentValue = window.paymentButtonState.confirmValue;
-                  if (!payment) {
-                    window.paymentButtonState.error = "Selecciona el método de pago.";
-                    renderSteps();
-                    return;
-                  }
-                  if (!paymentValue || paymentValue.length < 3) {
-                    window.paymentButtonState.error = "Confirma correctamente la cuenta/correo/teléfono asociado.";
-                    renderSteps();
-                    return;
-                  }
-                  if (!street1 || !city || !state || !zip) {
-                    formError = 'Selecciona una dirección válida de la lista de Google.';
-                    formValidating = false;
-                    renderSteps(); return;
-                  }
-                  formValidating = true; formError = '';
-                  renderSteps();
-                  try {
-                    const response = await fetch('/validar-direccion', {
-                      method: 'POST',
-                      headers: {'Content-Type':'application/json'},
-                      body: JSON.stringify({ street1, street2, city, state, zip })
-                    });
-                    const data = await response.json();
-                    if (data.status === 'valid') {
-                      document.getElementById('etiquetaResult').innerHTML = "Generando etiqueta...";
-                      try {
-                        const etiquetaResp = await fetch('/generar-etiqueta', {
-                          method: 'POST',
-                          headers: {'Content-Type':'application/json'},
-                          body: JSON.stringify({
-                            to_address: {
-                              name: nombre,
-                              street1,
-                              street2,
-                              city,
-                              state,
-                              zip,
-                              country: "US",
-                              phone: contacto
-                            },
-			    contacto, //
-                            payment_method: payment.value,
-                            payment_value: paymentValue
-                          })
-                        });
-                        const etiquetaData = await etiquetaResp.json();
-                        if (etiquetaData.status === 'success') {
-                          window.formState = {
-                            nombre: "",
-                            contacto: "",
-                            autocomplete: "",
-                            street1: "",
-                            street2: "",
-                            city: "",
-                            state: "",
-                            zip: ""
-                          };
-                          lastResumenData = {
-                            label_url: etiquetaData.label_url,
-                            tracking_code: etiquetaData.tracking_code,
-                            envio: {
-                              model: selection.model,
-                              carrier: selection.carrier,
-                              storage: selection.storage,
-                              condition: selection.condition,
-                              nombre,
-                              direccion: { street1, street2, city, state, zip },
-                              contacto,
-                              metodo: payment.value,
-                              metodo_id: paymentValue
-                            }
-                          };
-                          formSubmitted = true;
-                          formValidating = false;
-                          renderSteps();
-                        } else {
-                          document.getElementById('etiquetaResult').innerHTML = "Error generando etiqueta: " + (etiquetaData.message || "Error desconocido");
-                          formValidating = false;
-                        }
-                      } catch (err) {
-                        document.getElementById('etiquetaResult').innerHTML = "Error generando etiqueta: " + err.message;
-                        formValidating = false;
-                      }
-                    } else if (data.status === 'suggestion') {
-                      formError = '¿Quizá quisiste decir: ' +
-                        data.suggestion.street1 + ', ' +
-                        (data.suggestion.street2 ? (data.suggestion.street2 + ', ') : '') +
-                        data.suggestion.city + ', ' + data.suggestion.state + ', ' + data.suggestion.zip +
-                        '? Corrige la dirección, por favor.';
-                      formValidating = false;
-                      renderSteps();
-                    } else {
-                      formError = data.message || 'Dirección no válida. Revisa tus datos.';
-                      formValidating = false;
-                      renderSteps();
-                    }
-                  } catch (err) {
-                    formError = 'Error validando la dirección. Intenta de nuevo.';
-                    formValidating = false;
-                    renderSteps();
-                  }
-                });
-              }, 0);
-            }
-            resultSection.appendChild(formSection);
-          }
-        } else {
-          resultSection.innerHTML = `<div class="no-offer">No hay oferta para esta combinación.</div>`;
-        }
-        if (!formSubmitted) {
-          const restartBtn = document.createElement('button');
-          restartBtn.className = 'restart-btn';
-          restartBtn.textContent = 'Volver a calcular';
-          restartBtn.onclick = () => {
-            selection = { model:null, carrier:null, storage:null, condition:null };
-            openStep = 0;
-            showForm = false;
-            window.paymentButtonState = { selected: null, confirmValue: "", error: "" };
-            window.formState = {
-              nombre: "",
-              contacto: "",
-              autocomplete: "",
-              street1: "",
-              street2: "",
-              city: "",
-              state: "",
-              zip: ""
-            };
-            renderSteps();
-          };
-          resultSection.appendChild(restartBtn);
-        }
-        stepsDiv.appendChild(resultSection);
-      }
-    }
-
-    function renderSummaryPage(data) {
-      if (!data) return;
-      const {envio, label_url, tracking_code} = data;
-      document.getElementById("mainContent").innerHTML = `
-        <div class="summary-page">
-          <div class="summary-title">¡Gracias por tu envío!</div>
-          <div class="summary-section">
-            <div class="summary-label">Teléfono enviado:</div>
-            <div class="summary-value">
-              ${envio.model ? envio.model : ''} ${envio.storage ? envio.storage : ''}  
-              ${envio.carrier ? `(${envio.carrier})` : ''}  
-              ${envio.condition ? `<span style="font-weight:400;color:#888;">- ${envio.condition}</span>` : ''}
-            </div>
-          </div>
-          <div class="summary-section">
-            <div class="summary-label">Destinatario:</div>
-            <div class="summary-value">${envio.nombre || ''}</div>
-            <div class="summary-label">Dirección:</div>
-            <div class="summary-value">${envio.direccion.street1 || ''} ${envio.direccion.street2 || ''}, ${envio.direccion.city || ''}, ${envio.direccion.state || ''}, ${envio.direccion.zip || ''}</div>
-          </div>
-          <div class="summary-section">
-            <div class="summary-label">Método de pago:</div>
-            <div class="summary-value">${envio.metodo || ''} - ${envio.metodo_id || ''}</div>
-          </div>
-          <div class="summary-disclaimer">
-            <b>Declaro bajo protesta de decir verdad:</b><br>
-            El equipo enviado no es robado ni financiado, no tiene reporte de robo ni está sujeto a pagos pendientes.<br>
-            Soy el legítimo propietario y asumo toda responsabilidad legal en caso de que la información sea falsa. Acepto que cualquier falsedad o intento de fraude será reportado a las autoridades correspondientes y perderé derecho a pago.<br>
-            <br>
-            <b>¡Gracias por confiar en nosotros!</b>
-          </div>
-          <div class="summary-guide">
-            <b>Número de guía:</b> <span style="font-size:1.13em;">${tracking_code || ''}</span>
-          </div>
-          <a class="summary-btn" href="${label_url}" target="_blank" rel="noopener noreferrer">Descargar etiqueta de envío (PDF)</a>
-        </div>
-      `;
-    }
-
-    (async function init(){
-      try {
-        const res = await fetch(ENDPOINT);
-        const data = await res.json();
-        offers = Array.isArray(data) ? data : (Array.isArray(data.offers) ? data.offers : []);
-      } catch (e) {
-        offers = [];
-        document.getElementById('steps').innerHTML = `<div class="error-msg">Error al cargar datos.</div>`;
+      if (!paymentValue || paymentValue.length < 3) {
+        window.paymentButtonState.error = "Confirma correctamente la cuenta/correo/teléfono asociado.";
+        renderSteps();
         return;
       }
+      if (!street1 || !city || !state || !zip) {
+        formError = 'Selecciona una dirección válida de la lista de Google.';
+        formValidating = false;
+        renderSteps(); return;
+      }
+      formValidating = true; formError = '';
       renderSteps();
-    })();
+      try {
+        const response = await fetch('/validar-direccion', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ street1, street2, city, state, zip })
+        });
+        const data = await response.json();
+        if (data.status === 'valid') {
+          document.getElementById('etiquetaResult').innerHTML = "Generando etiqueta...";
+          try {
+            // --- Aquí el cambio importante: ahora SÍ mandas from_address y parcel ---
+            const etiquetaResp = await fetch('/generar-etiqueta', {
+              method: 'POST',
+              headers: {'Content-Type':'application/json'},
+              body: JSON.stringify({
+                to_address: {
+                  name: nombre,
+                  street1,
+                  street2,
+                  city,
+                  state,
+                  zip,
+                  country: "US",
+                  phone: contacto,
+                  email: contacto
+                },
+                from_address: DEFAULT_FROM_ADDRESS,
+                parcel: DEFAULT_PARCEL,
+                contacto,
+                payment_method: payment.value,
+                payment_value: paymentValue
+              })
+            });
+            const etiquetaData = await etiquetaResp.json();
+            if (etiquetaData.status === 'success') {
+              window.formState = {
+                nombre: "",
+                contacto: "",
+                autocomplete: "",
+                street1: "",
+                street2: "",
+                city: "",
+                state: "",
+                zip: ""
+              };
+              lastResumenData = {
+                label_url: etiquetaData.label_url,
+                tracking_code: etiquetaData.tracking_code,
+                envio: {
+                  model: selection.model,
+                  carrier: selection.carrier,
+                  storage: selection.storage,
+                  condition: selection.condition,
+                  nombre,
+                  direccion: { street1, street2, city, state, zip },
+                  contacto,
+                  metodo: payment.value,
+                  metodo_id: paymentValue
+                }
+              };
+              formSubmitted = true;
+              formValidating = false;
+              renderSteps();
+            } else {
+              document.getElementById('etiquetaResult').innerHTML = "Error generando etiqueta: " + (etiquetaData.message || "Error desconocido");
+              formValidating = false;
+            }
+          } catch (err) {
+            document.getElementById('etiquetaResult').innerHTML = "Error generando etiqueta: " + err.message;
+            formValidating = false;
+          }
+        } else if (data.status === 'suggestion') {
+          formError = '¿Quizá quisiste decir: ' +
+            data.suggestion.street1 + ', ' +
+            (data.suggestion.street2 ? (data.suggestion.street2 + ', ') : '') +
+            data.suggestion.city + ', ' + data.suggestion.state + ', ' + data.suggestion.zip +
+            '? Corrige la dirección, por favor.';
+          formValidating = false;
+          renderSteps();
+        } else {
+          formError = data.message || 'Dirección no válida. Revisa tus datos.';
+          formValidating = false;
+          renderSteps();
+        }
+      } catch (err) {
+        formError = 'Error validando la dirección. Intenta de nuevo.';
+        formValidating = false;
+        renderSteps();
+      }
+    });
+
+    // ...El resto de tu JS igual (renderSteps, renderSummaryPage, etc)...
+    // ...No olvides dejar tu inicialización de la app y demás funciones igual...
   </script>
 </body>
 </html>
