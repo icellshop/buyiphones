@@ -22,26 +22,26 @@ app.use('/pdfs', express.static(pdfsDir));
 
 // ==== API para validar dirección con Google ====
 app.post('/validar-direccion', async (req, res) => {
-  const { street1, street2, city, state, zip } = req.body;
-  if (!street1 || !city || !state || !zip) {
-    return res.status(400).json({ error: 'Faltan campos de dirección' });
+  let address = req.body.address;
+
+  // Si el frontend manda los campos separados, también los acepta:
+  if (!address) {
+    const { street1, street2, city, state, zip } = req.body;
+    if (!street1 || !city || !state || !zip) {
+      return res.status(400).json({ error: 'Faltan campos de dirección' });
+    }
+    address = `${street1}, ${street2 ? street2 + ', ' : ''}${city}, ${state}, ${zip}`;
   }
 
-  let address = `${street1}, ${street2 ? street2 + ', ' : ''}${city}, ${state}, ${zip}`;
   try {
     const apiKey = process.env.GOOGLE_API_KEY;
     const response = await axios.get('https://maps.googleapis.com/maps/api/geocode/json', {
-      params: {
-        address,
-        key: apiKey,
-      },
+      params: { address, key: apiKey }
     });
 
     if (response.data.status === 'OK' && response.data.results.length > 0) {
-      // Dirección válida
       return res.json({ status: 'valid', datos: response.data.results[0] });
     } else {
-      // Dirección inválida
       return res.json({ status: 'invalid', message: 'Dirección no encontrada' });
     }
   } catch (error) {
@@ -49,7 +49,7 @@ app.post('/validar-direccion', async (req, res) => {
   }
 });
 
-// ==== API para generar PDF (simple ejemplo, puedes usar pdfkit o similar para PDF real) ====
+// ==== API para generar PDF ====
 app.post('/generar-pdf', async (req, res) => {
   const { content, filename } = req.body;
   if (!content || !filename) {
@@ -73,12 +73,8 @@ app.get('/descargar/:pdf', (req, res) => {
 });
 
 // ==== SERVIR TU FRONTEND ====
-
-// Cambia 'public' si tu carpeta de frontend tiene otro nombre
 const frontendPath = path.join(__dirname, 'public');
 app.use(express.static(frontendPath));
-
-// Para cualquier ruta que NO sea /pdfs ni /generar-pdf ni /descargar, devuelve index.html (SPA)
 app.get(/^\/(?!pdfs\/|generar-pdf$|descargar\/).*/, (req, res) => {
   res.sendFile(path.join(frontendPath, 'index.html'));
 });
