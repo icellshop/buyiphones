@@ -8,6 +8,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 const api = new EasyPost(process.env.EASYPOST_API_KEY);
+const sendLabelEmail = require('./mailgun-send');
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -87,11 +88,30 @@ app.post('/generar-etiqueta', async (req, res) => {
     // COMPRA la etiqueta usando el método correcto según la documentación
     shipment = await api.Shipment.buy(shipment.id, rate);
 
+    // --- ENVÍA EL CORREO AUTOMATICAMENTE ---
+    let emailResult = null;
+    try {
+      // El email DEBE estar en toAddress.email, si no, busca en req.body.contacto como fallback
+      const destinatario = toAddress.email || req.body.contacto;
+      if (!destinatario) throw new Error("No se encontró email de destinatario para enviar la etiqueta.");
+
+      const asunto = "Tu etiqueta de envío ICellShop";
+      const texto = "Adjuntamos tu etiqueta para enviar el paquete a ICellShop. Imprímela y pégala en tu paquete.";
+
+      if (shipment.postage_label && shipment.postage_label.label_url) {
+        emailResult = await sendLabelEmail(destinatario, asunto, texto, shipment.postage_label.label_url);
+      }
+    } catch (mailError) {
+      // Si falla el envío de email, sigue funcionando pero avisa en el response
+      emailResult = { error: true, details: mailError.message };
+    }
+
     res.json({
       status: 'success',
       label_url: shipment.postage_label ? shipment.postage_label.label_url : null,
       tracking_code: shipment.tracking_code || null,
       shipment, // Incluye todo el objeto shipment por si necesitas más info en el frontend
+      email_result: emailResult
     });
   } catch (error) {
     console.error('EasyPost error:', error);
