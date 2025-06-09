@@ -52,15 +52,13 @@ app.post('/validar-direccion', async (req, res) => {
   }
 });
 
-// Endpoint para generar etiqueta con EasyPost
+// Endpoint para generar etiqueta con EasyPost (COMPRA la etiqueta y retorna el PDF)
 app.post('/generar-etiqueta', async (req, res) => {
   try {
-    // Tomamos los objetos tal como los recibimos en el body
     const toAddress = req.body.to_address;
     const fromAddress = req.body.from_address;
     const parcel = req.body.parcel;
 
-    // Validación básica
     if (!toAddress || !fromAddress || !parcel) {
       return res.status(400).json({
         status: 'error',
@@ -68,19 +66,35 @@ app.post('/generar-etiqueta', async (req, res) => {
       });
     }
 
-    const shipment = await api.Shipment.create({
+    // Crear el shipment
+    let shipment = await api.Shipment.create({
       to_address: toAddress,
       from_address: fromAddress,
       parcel: parcel,
-      // Puedes agregar otros campos válidos de EasyPost aquí si los necesitas
     });
 
+    // Selecciona la tarifa más barata disponible (o la primera, según tu lógica)
+    const rate = shipment.rates && shipment.rates.length > 0 ? shipment.rates[0] : null;
+
+    if (!rate) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'No se encontraron tarifas disponibles para el envío',
+        details: shipment
+      });
+    }
+
+    // Comprar la etiqueta (obligatorio para obtener el PDF)
+    shipment = await shipment.buy(rate);
+
+    // Devuelve el link directo al PDF y el tracking code
     res.json({
       status: 'success',
-      shipment,
+      label_url: shipment.postage_label ? shipment.postage_label.label_url : null,
+      tracking_code: shipment.tracking_code || null,
+      shipment, // Incluye todo el objeto shipment por si necesitas más info en el frontend
     });
   } catch (error) {
-    // Mostrar el error real de EasyPost para depuración
     console.error('EasyPost error:', error);
 
     let msg = error.message;
