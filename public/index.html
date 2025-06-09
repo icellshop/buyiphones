@@ -504,7 +504,7 @@
                     const response = await fetch('/validar-direccion', {
                       method: 'POST',
                       headers: {'Content-Type':'application/json'},
-                      body: JSON.stringify({ address: `${street1}, ${city}, ${state}, ${zip}` })
+                      body: JSON.stringify({ street1, street2, city, state, zip })
                     });
                     const data = await response.json();
                     if (data.status === 'valid') {
