@@ -100,7 +100,11 @@ app.post('/generar-etiqueta', async (req, res) => {
       shipment,
     });
   } catch (error) {
+    // Mostrar el error real de EasyPost para depuración
+    console.error('EasyPost error:', error);
+
     let msg = error.message;
+    if (error.errors) msg = JSON.stringify(error.errors);
     if (error.response && error.response.body) {
       msg = error.response.body.error || JSON.stringify(error.response.body);
     }
@@ -117,6 +121,7 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+// Iniciar el servidor
 app.listen(PORT, () => {
   console.log(`Servidor Express escuchando en puerto ${PORT}`);
 });
