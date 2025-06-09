@@ -47,7 +47,7 @@ app.get('/descargar/:pdf', (req, res) => {
 // ==== SERVIR TU FRONTEND ====
 
 // Cambia 'build' si tu carpeta de frontend tiene otro nombre
-const frontendPath = path.join(__dirname, 'build');
+const frontendPath = path.join(__dirname, 'public');
 app.use(express.static(frontendPath));
 
 // Para cualquier ruta que NO sea /pdfs ni /generar-pdf ni /descargar, devuelve index.html (SPA)
