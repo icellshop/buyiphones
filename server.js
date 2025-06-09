@@ -30,7 +30,8 @@ app.post('/validar-direccion', async (req, res) => {
     if (!street1 || !city || !state || !zip) {
       return res.status(400).json({ error: 'Faltan campos de dirección' });
     }
-    address = `${street1}, ${street2 ? street2 + ', ' : ''}${city}, ${state}, ${zip}`;
+    // Agrega country US al final para mejor precisión
+    address = `${street1}, ${street2 ? street2 + ', ' : ''}${city}, ${state}, ${zip}, US`;
   }
 
   try {
