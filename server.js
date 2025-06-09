@@ -6,18 +6,16 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware para parsear JSON y URL-encoded
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Servir archivos estáticos de la carpeta 'public'
+// Sirve archivos estáticos de la carpeta 'public'
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Endpoint para validar dirección con Google Geocoding API
+// Endpoint para validar dirección
 app.post('/validar-direccion', async (req, res) => {
   let address = req.body.address;
 
-  // Si el frontend manda los campos separados, también los acepta:
   if (!address) {
     const { street1, street2, city, state, zip } = req.body;
     if (!street1 || !city || !state || !zip) {
@@ -56,7 +54,6 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Iniciar el servidor
 app.listen(PORT, () => {
   console.log(`Servidor Express escuchando en puerto ${PORT}`);
 });
