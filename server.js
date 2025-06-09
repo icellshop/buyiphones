@@ -1,5 +1,6 @@
 const express = require('express');
 const axios = require('axios');
+const path = require('path');
 require('dotenv').config();
 
 const app = express();
@@ -9,10 +10,8 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Mensaje simple en la raíz para evitar error 404
-app.get('/', (req, res) => {
-  res.send('API buyiphones funcionando');
-});
+// Servir archivos estáticos de la carpeta 'public'
+app.use(express.static(path.join(__dirname, 'public')));
 
 // Endpoint para validar dirección con Google Geocoding API
 app.post('/validar-direccion', async (req, res) => {
@@ -50,6 +49,11 @@ app.post('/validar-direccion', async (req, res) => {
   } catch (error) {
     return res.status(500).json({ error: 'Error al consultar Google', details: error.message });
   }
+});
+
+// Para que cualquier ruta no-API devuelva tu index.html (SPA support)
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // Iniciar el servidor
