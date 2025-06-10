@@ -1,25 +1,17 @@
 const express = require('express');
 const axios = require('axios');
-const path = require('path');
 const EasyPost = require('@easypost/api');
 require('dotenv').config();
 
 const sendLabelEmail = require('./mailgun-send'); // Asegúrate que este archivo existe y funciona
 
-const app = express();
-const PORT = process.env.PORT || 3000;
-
 // Inicializa tu instancia de EasyPost API
 const api = new EasyPost(process.env.EASYPOST_API_KEY);
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-// Servir archivos estáticos de la carpeta 'public'
-app.use(express.static(path.join(__dirname, 'public')));
+const router = express.Router();
 
 // Endpoint para validar dirección con Google Geocoding API
-app.post('/validar-direccion', async (req, res) => {
+router.post('/validar-direccion', async (req, res) => {
   let address = req.body.address;
 
   if (!address) {
@@ -56,7 +48,7 @@ app.post('/validar-direccion', async (req, res) => {
 });
 
 // Endpoint para generar etiqueta con EasyPost y enviar por email
-app.post('/generar-etiqueta', async (req, res) => {
+router.post('/generar-etiqueta', async (req, res) => {
   try {
     // Filtra solo los campos permitidos para EasyPost
     const toAddress = {
@@ -132,12 +124,4 @@ app.post('/generar-etiqueta', async (req, res) => {
   }
 });
 
-// Ruta catch-all para SPA
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-// Iniciar el servidor
-app.listen(PORT, () => {
-  console.log(`Servidor Express escuchando en puerto ${PORT}`);
-});
+module.exports = router;
