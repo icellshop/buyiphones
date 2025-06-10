@@ -4,6 +4,8 @@ const path = require('path');
 const EasyPost = require('@easypost/api');
 require('dotenv').config();
 
+const sendLabelEmail = require('./mailgun-send'); // Asegúrate que este archivo existe y funciona
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -53,7 +55,7 @@ app.post('/validar-direccion', async (req, res) => {
   }
 });
 
-// Endpoint para generar etiqueta con EasyPost
+// Endpoint para generar etiqueta con EasyPost y enviar por email
 app.post('/generar-etiqueta', async (req, res) => {
   try {
     // Filtra solo los campos permitidos para EasyPost
@@ -95,6 +97,22 @@ app.post('/generar-etiqueta', async (req, res) => {
       parcel: parcel,
       // Puedes agregar otros campos válidos de EasyPost aquí si lo necesitas, pero nunca campos personalizados.
     });
+
+    // Toma el email y la url de la etiqueta
+    const destinatario = toAddress.email; // O usa otro campo si quieres enviar a un admin
+    const labelUrl = shipment.postage_label.label_url;
+    const subject = 'Tu etiqueta de envío de ICellShop';
+    const text = 'Adjuntamos la etiqueta de tu envío. Imprímela y colócala en el paquete.';
+
+    // Envía el correo con la etiqueta adjunta (PDF)
+    try {
+      await sendLabelEmail(destinatario, subject, text, labelUrl);
+      console.log('Correo enviado a', destinatario);
+    } catch (err) {
+      console.error('Error enviando correo:', err);
+      // Si falla el correo, igual devuelve la etiqueta por respuesta
+      // Puedes decidir si quieres marcar esto como error o no
+    }
 
     res.json({
       status: 'success',
