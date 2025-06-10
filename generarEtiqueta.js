@@ -3,7 +3,7 @@ const axios = require('axios');
 const EasyPost = require('@easypost/api');
 require('dotenv').config();
 
-const sendLabelEmail = require('./mailgun-send'); // Asegúrate que este archivo existe y funciona
+const sendLabelEmail = require('./mailgun-send');
 
 // Inicializa tu instancia de EasyPost API
 const api = new EasyPost(process.env.EASYPOST_API_KEY);
