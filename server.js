@@ -5,6 +5,7 @@ const EasyPost = require('@easypost/api');
 require('dotenv').config();
 
 const app = express();
+// Puerto: Render lo asigna por la variable de entorno PORT, nunca uses 10000 ni ningún puerto fijo aquí
 const PORT = process.env.PORT || 3000;
 
 const api = new EasyPost(process.env.EASYPOST_API_KEY);
@@ -134,7 +135,7 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Iniciar el servidor
+// Iniciar el servidor SIEMPRE en process.env.PORT
 app.listen(PORT, () => {
   console.log(`Servidor Express escuchando en puerto ${PORT}`);
 });
