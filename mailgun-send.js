@@ -7,11 +7,11 @@ const os = require('os');
 
 /**
  * Descarga una imagen desde una URL y la convierte a un PDF temporal.
- * Retorna la ruta absoluta del PDF generado.
  */
 async function imageToPDF(labelUrl) {
   // Descarga la imagen como buffer
   const response = await axios.get(labelUrl, { responseType: 'arraybuffer' });
+  const imgBuffer = Buffer.from(response.data);
 
   // Crea un archivo temporal para el PDF
   const tempPDFPath = path.join(os.tmpdir(), `etiqueta_${Date.now()}.pdf`);
@@ -24,16 +24,15 @@ async function imageToPDF(labelUrl) {
 
     doc.pipe(writeStream);
 
-    // La imagen original puede tener cualquier tamaño, así que agregamos una página con tamaño adecuado
-    let img;
+    // Determina el tamaño de la imagen (usa pdfkit's image info)
+    let imgDims;
     try {
-      img = doc.openImage(response.data);
+      imgDims = doc.openImage(imgBuffer);
     } catch (e) {
       return reject(new Error('No se pudo procesar la imagen descargada'));
     }
-
-    doc.addPage({ size: [img.width, img.height] });
-    doc.image(response.data, 0, 0);
+    doc.addPage({ size: [imgDims.width, imgDims.height] });
+    doc.image(imgBuffer, 0, 0);
 
     doc.end();
   });
@@ -41,7 +40,6 @@ async function imageToPDF(labelUrl) {
 
 /**
  * Descarga el PDF de una URL y lo guarda como archivo temporal.
- * Retorna la ruta absoluta del PDF generado.
  */
 async function downloadPDF(labelUrl) {
   const response = await axios.get(labelUrl, { responseType: 'arraybuffer' });
@@ -52,7 +50,6 @@ async function downloadPDF(labelUrl) {
 
 /**
  * Envía un correo con la etiqueta como PDF adjunto usando Mailgun.
- * Si la etiqueta es PNG/JPG, la convierte a PDF antes de adjuntarla.
  */
 async function sendLabelEmail(to, subject, text, labelUrl) {
   const DOMAIN = process.env.MAILGUN_DOMAIN;
@@ -62,21 +59,25 @@ async function sendLabelEmail(to, subject, text, labelUrl) {
   let attachmentPath;
   if (labelUrl.endsWith('.pdf')) {
     attachmentPath = await downloadPDF(labelUrl);
-  } else if (labelUrl.endsWith('.png') || labelUrl.endsWith('.jpg') || labelUrl.endsWith('.jpeg')) {
+  } else if (
+    labelUrl.endsWith('.png') ||
+    labelUrl.endsWith('.jpg') ||
+    labelUrl.endsWith('.jpeg')
+  ) {
     attachmentPath = await imageToPDF(labelUrl);
   } else {
-    // Si no se reconoce la extensión, intenta descargar y convertir como imagen
+    // Intenta primero como imagen, si falla como PDF
     try {
       attachmentPath = await imageToPDF(labelUrl);
     } catch (e) {
-      // Si falla, intenta descargar como PDF
       attachmentPath = await downloadPDF(labelUrl);
     }
   }
 
   const html = `
     <p>${text}</p>
-    <p>Adjuntamos tu etiqueta en PDF. Si tienes problemas, también puedes verla aquí:<br>
+    <p>Adjuntamos tu etiqueta en PDF.<br>
+    Si tienes problemas, también puedes verla aquí:<br>
     <a href="${labelUrl}" target="_blank">${labelUrl}</a></p>
   `;
 
@@ -90,14 +91,14 @@ async function sendLabelEmail(to, subject, text, labelUrl) {
       new mg.Attachment({
         data: fs.createReadStream(attachmentPath),
         filename: 'etiqueta.pdf',
-        contentType: 'application/pdf'
-      })
-    ]
+        contentType: 'application/pdf',
+      }),
+    ],
   };
 
   return new Promise((resolve, reject) => {
     mg.messages().send(data, function (error, body) {
-      // Borra el archivo temporal después de enviar el mail
+      // Limpia el archivo temporal
       fs.unlink(attachmentPath, () => {});
       if (error) return reject(error);
       resolve(body);
