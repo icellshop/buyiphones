@@ -12,6 +12,7 @@
     "dotenv": "^16.0.3",
     "express": "^4.18.2",
     "mailgun-js": "^0.22.0",
+    "image-size": "^2.0.2",
     "pdfkit": "0.17.1"
   },
   "engines": {
