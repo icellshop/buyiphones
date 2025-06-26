@@ -21,6 +21,22 @@ app.get('/env.js', (req, res) => {
   res.send(`window.APP_CONFIG = { OFFERS_ENDPOINT: "${process.env.OFFERS_ENDPOINT}" };`);
 });
 
+
+// Ruta para /sell-device que sirve selldevice.html
+app.get('/sell-device', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'selldevice.html'));
+});
+
+// Ruta para Home
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// (opcional) Redirección para /index.html
+app.get('/index.html', (req, res) => {
+  res.redirect('/');
+});
+
 // Endpoint para validar dirección con Google Geocoding API
 app.post('/validar-direccion', async (req, res) => {
   let address = req.body.address;
