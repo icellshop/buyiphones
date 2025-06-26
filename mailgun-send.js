@@ -105,3 +105,5 @@ async function sendLabelEmail(to, subject, text, labelUrl) {
 }
 
 module.exports = sendLabelEmail;
+module.exports.imageToPDF = imageToPDF;
+
