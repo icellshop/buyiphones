@@ -16,6 +16,11 @@ app.use(express.urlencoded({ extended: true }));
 // Servir archivos estáticos de la carpeta 'public'
 app.use(express.static(path.join(__dirname, 'public')));
 
+app.get('/env.js', (req, res) => {
+  res.type('application/javascript');
+  res.send(`window.APP_CONFIG = { OFFERS_ENDPOINT: "${process.env.OFFERS_ENDPOINT}" };`);
+});
+
 // Endpoint para validar dirección con Google Geocoding API
 app.post('/validar-direccion', async (req, res) => {
   let address = req.body.address;
