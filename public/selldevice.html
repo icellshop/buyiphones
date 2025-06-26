@@ -668,7 +668,7 @@
                     });
                     const data = await response.json();
                     if (data.status === 'valid') {
-                      document.getElementById('etiquetaResult').innerHTML = "Generando etiqueta...";
+                      document.getElementById('etiquetaResult').innerHTML = "Preparing label...";
                       try {
                         const etiquetaResp = await fetch('/generar-etiqueta', {
                           method: 'POST',
