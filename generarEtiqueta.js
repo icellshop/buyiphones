@@ -122,6 +122,10 @@ router.post('/generar-etiqueta', async (req, res) => {
       // Si falla el correo, igual devuelve la etiqueta por respuesta
     }
 
+    // 6. Borra el archivo PDF después de enviar el correo si NO quieres que sea descargable más de una vez
+    // Si quieres que el PDF esté disponible por link, NO lo borres aquí.
+    // fs.unlinkSync(finalPdfPath);
+
     res.json({
       status: 'success',
       label_url: labelPdfUrl,  // Ahora es PDF
