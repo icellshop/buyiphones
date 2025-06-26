@@ -1,1 +1,699 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Vende tu iPhone | Oferta Instantánea</title>
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyD6BLGBmnccaQawoi8SFyQbm8IkDtzwfCM&libraries=places"></script>
+  <style>
+    :root {
+      --main-bg: #f5f5f7;
+      --accent: #0071e3;
+      --accent-hover: #005bb5;
+      --radius: 18px;
+      --shadow: 0 6px 32px rgba(0,0,0,0.08);
+      --text-main: #1d1d1f;
+      --text-light: #86868b;
+    }
+    html, body { background: var(--main-bg); font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif; color: var(--text-main); margin: 0; padding: 0;}
+    .container { max-width: 440px; margin: 42px auto; background: #fff; border-radius: var(--radius); box-shadow: var(--shadow); padding: 2.1rem 1.2rem 1.2rem 1.2rem;}
+    h1 { text-align: center; font-size: 2.1rem; font-weight: 700; margin-bottom: 1.2rem; letter-spacing: -1px;}
+    .steps { display: flex; flex-direction: column; gap: 0.4rem;}
+    .step { background: #fafbfc; border-radius: var(--radius); margin-bottom: 0.8rem; box-shadow: 0 1px 7px rgba(0,0,0,0.03); overflow: hidden; transition: box-shadow 0.25s; position: relative;}
+    .step.active { box-shadow: 0 4px 18px rgba(0,113,227,0.10);}
+    .step-header { font-size: 1.11rem; font-weight: 600; color: var(--text-light); padding: 1.1rem 1rem 0.8rem 2.0rem; cursor: pointer; position: relative; background: transparent; border: none; outline: none; display: flex; align-items: center; gap: 0.5rem; transition: color 0.18s; z-index: 2; user-select: none;}
+    .step-header.active { color: var(--accent);}
+    .step-header:before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--text-light); display: inline-block; margin-right: 0.5em; transition: background 0.2s;}
+    .step-header.active:before { background: var(--accent);}
+    .step-content { max-height: 0; opacity: 0; padding: 0 1.5rem; overflow: hidden; pointer-events: none; transform: translateY(40px) scale(0.98); transition: max-height 0.65s cubic-bezier(.4,1.4,.55,1), opacity 0.40s cubic-bezier(.4,1.4,.55,1), padding 0.2s, transform 0.38s cubic-bezier(.4,1.4,.55,1);}
+    .step.active .step-content { max-height: 500px; opacity: 1; padding: 0 1.5rem 1.3rem 1.5rem; pointer-events: auto; transform: translateY(0) scale(1); transition: max-height 0.7s cubic-bezier(.4,1.4,.55,1), opacity 0.44s cubic-bezier(.4,1.4,.55,1), padding 0.2s, transform 0.42s cubic-bezier(.4,1.4,.55,1);}
+    .card-list { display: flex; flex-wrap: wrap; gap: 1.05rem; justify-content: center; margin-top: 0.8rem; margin-bottom: 0.3rem;}
+    .card { background: #f9f9fa; border-radius: var(--radius); min-width: 104px; min-height: 110px; padding: 0.7rem 0.9rem 0.5rem 0.9rem; box-shadow: 0 1px 7px rgba(0,0,0,0.03); cursor: pointer; transition: box-shadow 0.18s cubic-bezier(.4,0,.2,1), border 0.18s cubic-bezier(.4,0,.2,1), color 0.18s, background 0.18s; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; font-size: 1.07rem; color: var(--text-main); border: 2px solid transparent; font-weight: 500; outline: none; position: relative; z-index: 1; will-change: box-shadow, border, transform; box-shadow: 0 1px 7px rgba(0,0,0,0.03);}
+    .card.selected, .card:focus-visible { border: 2px solid var(--accent); background: #eaf6ff; color: var(--accent); box-shadow: 0 4px 18px rgba(0,113,227,0.12); z-index: 2; transform: scale(1.04);}
+    .card:hover:not(.selected) { border: 2px solid #e0e0e5; background: #f1faff; box-shadow: 0 3px 12px rgba(0,113,227,0.08); color: var(--accent-hover); transform: scale(1.04);}
+    .card-img { width: 54px; height: 54px; margin-bottom: 0.5rem; object-fit: contain; filter: drop-shadow(0px 1px 2px #0002); pointer-events: none; user-select: none; background: #fff; border-radius: 13px; border: 1px solid #eee;}
+    .result-offer { text-align: center; margin: 1.2rem 0 0 0; font-size: 1.34rem; font-weight: 700; color: var(--accent); letter-spacing: -0.5px; animation: fadeInUp 0.7s cubic-bezier(.4,1.4,.55,1);}
+    .no-offer { color: #d00; font-weight: 500; text-align: center; margin-top: 1.8rem; font-size: 1.05rem; animation: fadeInUp 0.7s cubic-bezier(.4,1.4,.55,1);}
+    .accept-btn, .restart-btn, .submit-btn { width: 100%; padding: 0.93rem 0; font-size: 1.11rem; font-weight: 600; border: none; border-radius: var(--radius); background: var(--accent); color: #fff; cursor: pointer; margin-top: 1.5rem; box-shadow: 0 2px 10px rgba(0,113,227,0.06); transition: background 0.16s; display: block; animation: fadeInUp 0.7s cubic-bezier(.4,1.4,.55,1);}
+    .accept-btn { margin-bottom: 0.5rem;}
+    .form-section { animation: fadeInUp 0.7s cubic-bezier(.4,1.4,.55,1); margin-top: 1.2rem; margin-bottom: 1.0rem;}
+    .form-group { margin-bottom: 1.1rem;}
+    label { display: block; font-size: 1.01rem; color: var(--text-light); margin-bottom: 0.28rem; font-weight: 500;}
+    input[type="text"], input[type="email"], textarea, select { width: 100%; padding: 0.7rem 0.8rem; border-radius: 10px; border: 1.2px solid #d7d7dd; background: #f6f6fa; font-size: 1.07rem; margin-bottom: 0.1rem; color: var(--text-main); font-family: inherit; transition: border 0.18s; box-sizing: border-box;}
+    input:focus, textarea:focus, select:focus { border: 1.5px solid var(--accent); outline: none; background: #eaf6ff;}
+    .form-row { display: flex; gap: 0.6rem;}
+    .form-row > * { flex: 1; }
+    .form-note { color: var(--text-light); font-size: 0.96rem; margin-bottom: 1.1rem; margin-top: -0.7rem;}
+    .form-success { color: var(--accent); text-align: center; font-size: 1.09rem; font-weight: 600; margin-top: 1.4rem; animation: fadeInUp 0.7s cubic-bezier(.4,1.4,.55,1);}
+    .form-error { color: #d00; text-align: center; font-size: 1.01rem; margin-top: 0.6rem; animation: fadeInUp 0.7s cubic-bezier(.4,1.4,.55,1);}
+    .loading, .error-msg { text-align: center; margin: 2.1rem 0 1.2rem 0; font-size: 1.08rem; color: var(--accent); animation: fadeIn 1.2s;}
+    .error-msg { color: #d00; }
+    .payment-methods-list { display: flex; gap: 1rem; margin-bottom: 1.1rem; justify-content: center; flex-wrap: wrap;}
+    .payment-method-btn { display: flex; align-items: center; gap: 0.7em; border: 2px solid transparent; background: #f6f6fa; border-radius: 12px; cursor: pointer; padding: 0.6em 1.1em 0.6em 0.7em; font-size: 1.07rem; font-weight: 500; transition: border 0.2s cubic-bezier(.4,1.4,.55,1), box-shadow 0.2s cubic-bezier(.4,1.4,.55,1), background 0.18s; color: var(--text-main); min-width: 120px; min-height: 48px; box-shadow: 0 1px 7px rgba(0,0,0,0.03);}
+    .payment-method-btn.selected { border: 2px solid var(--accent); background: #eaf6ff; color: var(--accent); box-shadow: 0 3px 12px rgba(0,113,227,0.08); transform: scale(1.04);}
+    .payment-method-btn:hover:not(.selected) { border: 2px solid #e0e0e5; background: #f1faff; color: var(--accent-hover); transform: scale(1.04);}
+    .payment-method-img { width: 34px; height: 34px; border-radius: 7px; background: #fff; object-fit: contain; border: 1px solid #eee; box-shadow: 0 1px 3px #0002;}
+    .payment-confirm-group { margin-bottom: 1.1rem; animation: fadeInUp 0.6s;}
+    .payment-confirm-label { font-size: 1.01rem; color: var(--text-light); margin-bottom: 0.28rem; font-weight: 500; display: block;}
+    .payment-confirm-input { width: 100%; padding: 0.7rem 0.8rem; border-radius: 10px; border: 1.2px solid #d7d7dd; background: #f6f6fa; font-size: 1.07rem; margin-bottom: 0.1rem; color: var(--text-main); font-family: inherit; transition: border 0.18s; box-sizing: border-box;}
+    .payment-confirm-input:focus { border: 1.5px solid var(--accent); outline: none; background: #eaf6ff;}
+    .summary-page { padding: 2.1rem 1.2rem 1.2rem 1.2rem; background: #fff; border-radius: var(--radius); box-shadow: var(--shadow); max-width: 440px; margin: 42px auto;}
+    .summary-title { font-size: 1.45rem; font-weight: 700; text-align: center; color: var(--accent); margin-bottom: 1.1rem;}
+    .summary-section { margin: 1.2rem 0;}
+    .summary-label { color: var(--text-light); font-size: 1.02rem; margin-bottom: 0.1rem;}
+    .summary-value { font-size: 1.18rem; font-weight: 600; color: var(--text-main);}
+    .summary-disclaimer { background: #f6f6fa; border-radius: 11px; padding: 1.1rem 1rem; color: #7a4d00; font-size: 1.01rem; margin: 1.2rem 0 1.7rem 0; border: 1.5px solid #ffe6b3;}
+    .summary-guide { text-align: center; margin: 1.6rem 0 1.2rem 0;}
+    .summary-guide b { color: var(--accent);}
+    .summary-btn {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      width: 100%;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius);
+      font-weight: 600;
+      font-size: 1.13rem;
+      padding: 0.92em 0;
+      cursor: pointer;
+      margin-top: 1.3rem;
+      transition: background 0.17s;
+      text-decoration: none;
+    }
+    .summary-btn:hover { background: var(--accent-hover);}
+    #contacto-error { margin-top: 0; }
+    @media (max-width: 650px) {
+      .summary-page { max-width: 98vw; padding: 1.2rem 0.2rem 0.4rem 0.2rem;}
+    }
+  </style>
+</head>
+<body>
+  <div id="mainContent">
+    <div class="container">
+      <h1>Vende tu iPhone</h1>
+      <div class="steps" id="steps"></div>
+    </div>
+  </div>
+   <script src="/env.js"></script>
+  <script>
+    // ENDPOINT ahora se obtiene del objeto de configuración inyectado por el backend
+    const ENDPOINT = window.APP_CONFIG.OFFERS_ENDPOINT;
+  <script>
+    // Remitente y dimensiones fijos
+    const DEFAULT_FROM_ADDRESS = {
+      name: "ICellShop",
+      street1: "2506 E COWAN CIR",
+      street2: "",
+      city: "Phoenix",
+      state: "AZ",
+      zip: "85050",
+      country: "US",
+      phone: "555-123-4567",
+      email: "icellshop@correo.com"
+    };
+    const DEFAULT_PARCEL = {
+      length: 20,
+      width: 15,
+      height: 10,
+      weight: 500
+    };
 
+    // Estado global
+    if (!window.formState) window.formState = {
+      nombre: "",
+      contacto: "",
+      autocomplete: "",
+      street1: "",
+      street2: "",
+      city: "",
+      state: "",
+      zip: ""
+    };
+    if (!window.paymentButtonState) window.paymentButtonState = {
+      selected: null,
+      confirmValue: "",
+      error: ""
+    };
+
+    const modelImages = {
+      "iPhone 13": "https://www.apple.com/v/iphone-13/f/images/overview/hero/hero_static__e6khcva4hkeq_large.jpg",
+      "iPhone 13 Pro": "https://www.apple.com/v/iphone-13-pro/f/images/overview/design/finishes_1_graphite__f7wnch6y6cya_large.jpg",
+      "iPhone 12": "https://www.apple.com/v/iphone-12/f/images/overview/hero/hero_static__e6khcva4hkeq_large.jpg",
+      "iPhone 11": "https://www.apple.com/v/iphone-11/f/images/overview/hero/hero_static__b1x5w6q3v6y6_large.jpg",
+      "iPhone XR": "https://www.apple.com/v/iphone-xr/f/images/overview/hero/hero_static__e6khcva4hkeq_large.jpg"
+    };
+    const carrierImages = {
+      "AT&T": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5e/AT%26T_logo_2016.svg/320px-AT%26T_logo_2016.svg.png",
+      "Verizon": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6b/Verizon_2015_logo_-vector.svg/320px-Verizon_2015_logo_-vector.svg.png",
+      "T-Mobile": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2e/T-Mobile_logo_2022.svg/320px-T-Mobile_logo_2022.svg.png",
+      "Unlocked": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/55/Unlocked_padlock_icon.png/200px-Unlocked_padlock_icon.png"
+    };
+    const paymentMethods = [
+      {
+        label: "Zelle",
+        value: "Zelle",
+        img: "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5b/Zelle_logo.svg/320px-Zelle_logo.svg.png",
+        placeholder: "Correo o teléfono asociado a Zelle"
+      },
+      {
+        label: "PayPal",
+        value: "PayPal",
+        img: "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b5/PayPal.svg/320px-PayPal.svg.png",
+        placeholder: "Correo de tu cuenta PayPal"
+      },
+      {
+        label: "CashApp",
+        value: "CashApp",
+        img: "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2c/Cash_App_Logo.svg/320px-Cash_App_Logo.svg.png",
+        placeholder: "Usuario $cashtag o teléfono asociado"
+      },
+      {
+        label: "Wire Transfer",
+        value: "Wire Transfer",
+        img: "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9c/Bank_font_awesome.svg/240px-Bank_font_awesome.svg.png",
+        placeholder: "Cuenta bancaria o routing number"
+      }
+    ];
+    
+    const STEPS = [
+      { key: 'model',      label: 'Selecciona el modelo',    withImage: true, images: modelImages },
+      { key: 'carrier',    label: 'Selecciona la compañía',  withImage: true, images: carrierImages },
+      { key: 'storage',    label: 'Selecciona la capacidad', withImage: false },
+      { key: 'condition',  label: 'Selecciona la condición', withImage: false }
+    ];
+    let offers = [];
+    let selection = { model:null, carrier:null, storage:null, condition:null };
+    let openStep = 0;
+    let showForm = false;
+    let formSubmitted = false;
+    let formError = '';
+    let formValidating = false;
+    let lastResumenData = null;
+
+    function isValidEmail(email) {
+      return /^[\w\.\-]+@([\w\-]+\.)+[a-zA-Z]{2,}$/.test(email.trim());
+    }
+    function isValidPhone(phone) {
+      return /^(\+?1)?\d{10}$/.test(phone.replace(/[^\d]/g,''));
+    }
+
+    function unique(arr, key) {
+      return [...new Set(arr.map(x => x[key]))];
+    }
+    function getFilteredOptions(stepIdx) {
+      let filtered = offers;
+      for (let i=0; i<stepIdx; ++i) {
+        const k = STEPS[i].key;
+        if (selection[k]) filtered = filtered.filter(o => o[k] === selection[k]);
+      }
+      return unique(filtered, STEPS[stepIdx].key);
+    }
+
+    function renderPaymentButtons(paymentSelected, confirmValue, onSelect, onConfirmChange, errorMsg) {
+      const wrapper = document.createElement('div');
+      const btnList = document.createElement('div');
+      btnList.className = 'payment-methods-list';
+      paymentMethods.forEach(p => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'payment-method-btn' + (paymentSelected && paymentSelected.value === p.value ? ' selected':'');
+        btn.innerHTML = `<img class="payment-method-img" src="${p.img}" alt="${p.label}"> ${p.label}`;
+        btn.onclick = () => { onSelect(p); };
+        btnList.appendChild(btn);
+      });
+      wrapper.appendChild(btnList);
+
+      if (paymentSelected) {
+        const confirmDiv = document.createElement('div');
+        confirmDiv.className = 'payment-confirm-group';
+        const lbl = document.createElement('label');
+        lbl.className = 'payment-confirm-label';
+        lbl.setAttribute('for', 'paymentConfirmInput');
+        lbl.textContent = `Confirma ${paymentSelected.placeholder.toLowerCase()}`;
+        confirmDiv.appendChild(lbl);
+        const inp = document.createElement('input');
+        inp.className = 'payment-confirm-input';
+        inp.id = 'paymentConfirmInput';
+        inp.name = 'paymentConfirmInput';
+        inp.required = true;
+        inp.placeholder = paymentSelected.placeholder;
+        inp.value = confirmValue;
+        inp.oninput = e => onConfirmChange(e.target.value);
+        confirmDiv.appendChild(inp);
+        if (errorMsg) {
+          const err = document.createElement('div');
+          err.className = 'form-error';
+          err.textContent = errorMsg;
+          confirmDiv.appendChild(err);
+        }
+        wrapper.appendChild(confirmDiv);
+      }
+      return wrapper;
+    }
+
+    function renderSteps() {
+      const stepsDiv = document.getElementById('steps');
+      stepsDiv.innerHTML = '';
+      if (!offers || offers.length === 0) {
+        stepsDiv.innerHTML = `<div class="loading">Cargando datos...</div>`;
+        return;
+      }
+      STEPS.forEach((step, idx) => {
+        if (idx > 0 && !selection[STEPS[idx-1].key]) return;
+        const section = document.createElement('div');
+        section.className = 'step' + (openStep === idx ? ' active':'');
+        const header = document.createElement('button');
+        header.type = 'button';
+        header.className = 'step-header' + (openStep === idx ? ' active':'');
+        header.tabIndex = 0;
+        header.innerHTML = step.label + (selection[step.key] ? `: <span style="color:var(--accent);font-weight:700;">${selection[step.key]}</span>`:'');
+        header.onclick = () => {
+          openStep = idx;
+          showForm = false;
+          renderSteps();
+        };
+        section.appendChild(header);
+        const content = document.createElement('div');
+        content.className = 'step-content';
+        if (openStep === idx) {
+          const options = getFilteredOptions(idx);
+          const cardList = document.createElement('div');
+          cardList.className = 'card-list';
+          options.forEach(opt => {
+            const card = document.createElement('button');
+            card.type = 'button';
+            card.className = 'card' + (selection[step.key] === opt ? ' selected':'');
+            if (step.withImage && step.images && step.images[opt]) {
+              const img = document.createElement('img');
+              img.src = step.images[opt];
+              img.alt = opt;
+              img.className = 'card-img';
+              card.appendChild(img);
+            }
+            const label = document.createElement('span');
+            label.innerText = opt;
+            card.appendChild(label);
+            card.onclick = () => {
+              selection[step.key] = opt;
+              STEPS.slice(idx+1).forEach(s=>selection[s.key]=null);
+              showForm = false;
+              setTimeout(() => {
+                openStep = idx+1;
+                renderSteps();
+              }, 170);
+            };
+            cardList.appendChild(card);
+          });
+          content.appendChild(cardList);
+        }
+        section.appendChild(content);
+        stepsDiv.appendChild(section);
+      });
+      if (STEPS.every(s=>selection[s.key])) {
+        const resultSection = document.createElement('div');
+        resultSection.className = 'step active';
+        const match = offers.find(
+          o => o.model === selection.model && o.carrier === selection.carrier &&
+               o.storage === selection.storage && o.condition === selection.condition
+        );
+        if (match) {
+          resultSection.innerHTML = `<div class="result-offer">¡Tu oferta es:<br><strong>$${match.offer} USD</strong></div>`;
+          if (!showForm) {
+            const acceptBtn = document.createElement('button');
+            acceptBtn.className = 'accept-btn';
+            acceptBtn.textContent = 'Aceptar oferta';
+            acceptBtn.onclick = () => {
+              showForm = true;
+              formSubmitted = false;
+              formError = '';
+              renderSteps();
+            };
+            resultSection.appendChild(acceptBtn);
+          } else {
+            const formSection = document.createElement('div');
+            formSection.className = 'form-section';
+            if (formSubmitted) {
+              renderSummaryPage(lastResumenData);
+              return;
+            } else {
+              formSection.innerHTML = `
+                <form id="sellForm" autocomplete="off">
+                  <div class="form-group">
+                    <label for="nombre">Nombre completo</label>
+                    <input required id="nombre" name="nombre" type="text" autocomplete="name" />
+                  </div>
+                  <div class="form-group">
+                    <label for="autocomplete">Dirección de envío</label>
+                    <input id="autocomplete" type="text" placeholder="Empieza a escribir tu dirección..." autocomplete="off" required>
+                    <input id="street1" name="street1" type="hidden" required>
+                    <input id="street2" name="street2" type="hidden">
+                    <input id="city" name="city" type="hidden" required>
+                    <input id="state" name="state" type="hidden" required>
+                    <input id="zip" name="zip" type="hidden" required>
+                  </div>
+                  <div id="paymentButtonsContainer"></div>
+                  <div class="form-group">
+                    <label for="contacto">Correo o teléfono de contacto</label>
+                    <input required id="contacto" name="contacto" type="text" autocomplete="email"/>
+                  </div>
+                  <div class="form-note">
+                    <em>Solo se aceptan direcciones de USA.<br>Tu información es confidencial y solo se usará para procesar el pago y envío.</em>
+                  </div>
+                  <button class="submit-btn" type="submit" ${formValidating?'disabled':''}>${formValidating?'Validando dirección...':'Enviar información'}</button>
+                  ${formError ? `<div class="form-error">${formError}</div>` : ''}
+                  <div id="etiquetaResult" style="margin-top:1.2rem"></div>
+                </form>
+              `;
+              setTimeout(() => {
+                document.getElementById('nombre').value = window.formState.nombre || "";
+                document.getElementById('contacto').value = window.formState.contacto || "";
+                document.getElementById('autocomplete').value = window.formState.autocomplete || "";
+                document.getElementById('street1').value = window.formState.street1 || "";
+                document.getElementById('street2').value = window.formState.street2 || "";
+                document.getElementById('city').value = window.formState.city || "";
+                document.getElementById('state').value = window.formState.state || "";
+                document.getElementById('zip').value = window.formState.zip || "";
+                document.getElementById('nombre').oninput = e => window.formState.nombre = e.target.value;
+                document.getElementById('contacto').oninput = e => window.formState.contacto = e.target.value;
+                document.getElementById('autocomplete').oninput = e => window.formState.autocomplete = e.target.value;
+                ["street1","street2","city","state","zip"].forEach(id=>{
+                  document.getElementById(id).oninput = e => { window.formState[id] = e.target.value; };
+                });
+
+                let autocompleteObj = new google.maps.places.Autocomplete(
+                  document.getElementById('autocomplete'),
+                  { types: ['address'], componentRestrictions: {country: "us"} }
+                );
+                autocompleteObj.setFields(['address_components', 'formatted_address']);
+                autocompleteObj.addListener('place_changed', function() {
+                  const place = autocompleteObj.getPlace();
+                  let street1 = '', street2 = '', city = '', state = '', zip = '';
+                  for (const component of place.address_components) {
+                    const types = component.types;
+                    if (types.includes('street_number')) street1 = component.long_name + ' ' + street1;
+                    if (types.includes('route')) street1 += component.long_name;
+                    if (types.includes('subpremise')) street2 = component.long_name;
+                    if (types.includes('locality')) city = component.long_name;
+                    if (types.includes('administrative_area_level_1')) state = component.short_name;
+                    if (types.includes('postal_code')) zip = component.long_name;
+                  }
+                  document.getElementById('street1').value = street1.trim();
+                  document.getElementById('street2').value = street2;
+                  document.getElementById('city').value = city;
+                  document.getElementById('state').value = state;
+                  document.getElementById('zip').value = zip;
+                  window.formState.street1 = street1.trim();
+                  window.formState.street2 = street2;
+                  window.formState.city = city;
+                  window.formState.state = state;
+                  window.formState.zip = zip;
+                  window.formState.autocomplete = document.getElementById('autocomplete').value;
+                });
+
+                let contactInput = document.getElementById('contacto');
+                let paymentMethod = window.paymentButtonState.selected;
+                let contactErrorDiv = null;
+                if (!document.getElementById('contacto-error')) {
+                  contactErrorDiv = document.createElement('div');
+                  contactErrorDiv.className = 'form-error';
+                  contactErrorDiv.id = 'contacto-error';
+                  contactInput.parentNode.appendChild(contactErrorDiv);
+                } else {
+                  contactErrorDiv = document.getElementById('contacto-error');
+                }
+                function validateContactoField() {
+                  let value = contactInput.value.trim();
+                  let errorMsg = '';
+                  if (paymentMethod) {
+                    if (paymentMethod.value === 'PayPal') {
+                      if (!isValidEmail(value)) errorMsg = 'Introduce un correo electrónico válido para PayPal.';
+                    } else if (paymentMethod.value === 'Zelle' || paymentMethod.value === 'CashApp') {
+                      if (!isValidEmail(value) && !isValidPhone(value)) errorMsg = 'Introduce un email o teléfono válido de USA.';
+                    } else if (paymentMethod.value === 'Wire Transfer') {
+                      if (value.length < 5) errorMsg = 'Introduce los datos bancarios completos.';
+                    }
+                  }
+                  contactErrorDiv.textContent = errorMsg;
+                  return !errorMsg;
+                }
+                contactInput.oninput = function() {
+                  window.formState.contacto = this.value;
+                  validateContactoField();
+                };
+                if (paymentMethod) validateContactoField();
+
+                let paymentConfirmInput = document.getElementById('paymentConfirmInput');
+                let paymentErrorDiv = paymentConfirmInput ? paymentConfirmInput.parentNode.querySelector('.form-error') : null;
+                if (paymentConfirmInput) {
+                  paymentConfirmInput.oninput = function() {
+                    window.paymentButtonState.confirmValue = this.value;
+                    let value = this.value.trim();
+                    let error = '';
+                    if (paymentMethod) {
+                      if (paymentMethod.value === 'PayPal') {
+                        if (!isValidEmail(value)) error = 'Introduce un correo electrónico válido para PayPal.';
+                      } else if (paymentMethod.value === 'Zelle' || paymentMethod.value === 'CashApp') {
+                        if (!isValidEmail(value) && !isValidPhone(value)) error = 'Introduce un email o teléfono válido de USA.';
+                      } else if (paymentMethod.value === 'Wire Transfer') {
+                        if (value.length < 5) error = 'Introduce los datos bancarios completos.';
+                      }
+                    }
+                    if (paymentErrorDiv) paymentErrorDiv.textContent = error;
+                  };
+                  paymentConfirmInput.dispatchEvent(new Event('input'));
+                }
+
+                const paymentButtonsContainer = document.getElementById('paymentButtonsContainer');
+                paymentButtonsContainer.innerHTML = '';
+                paymentButtonsContainer.appendChild(renderPaymentButtons(
+                  window.paymentButtonState.selected,
+                  window.paymentButtonState.confirmValue,
+                  (newSelected) => {
+                    window.paymentButtonState.selected = newSelected;
+                    window.paymentButtonState.confirmValue = "";
+                    window.paymentButtonState.error = "";
+                    window.formState.nombre = document.getElementById('nombre').value;
+                    window.formState.contacto = document.getElementById('contacto').value;
+                    window.formState.autocomplete = document.getElementById('autocomplete').value;
+                    window.formState.street1 = document.getElementById('street1').value;
+                    window.formState.street2 = document.getElementById('street2').value;
+                    window.formState.city = document.getElementById('city').value;
+                    window.formState.state = document.getElementById('state').value;
+                    window.formState.zip = document.getElementById('zip').value;
+                    renderSteps();
+                  },
+                  (newConfirmValue) => {
+                    window.paymentButtonState.confirmValue = newConfirmValue;
+                  },
+                  window.paymentButtonState.error
+                ));
+                document.getElementById('sellForm')?.addEventListener('submit', async function(e){
+                  e.preventDefault();
+                  if (!validateContactoField()) return;
+                  if (paymentConfirmInput) paymentConfirmInput.dispatchEvent(new Event('input'));
+                  if (paymentErrorDiv && paymentErrorDiv.textContent) return;
+                  const nombre = document.getElementById('nombre').value;
+                  const contacto = document.getElementById('contacto').value;
+                  const street1 = document.getElementById('street1').value;
+                  const street2 = document.getElementById('street2').value;
+                  const city = document.getElementById('city').value;
+                  const state = document.getElementById('state').value;
+                  const zip = document.getElementById('zip').value;
+                  const payment = window.paymentButtonState.selected;
+                  const paymentValue = window.paymentButtonState.confirmValue;
+                  if (!payment) {
+                    window.paymentButtonState.error = "Selecciona el método de pago.";
+                    renderSteps();
+                    return;
+                  }
+                  if (!paymentValue || paymentValue.length < 3) {
+                    window.paymentButtonState.error = "Confirma correctamente la cuenta/correo/teléfono asociado.";
+                    renderSteps();
+                    return;
+                  }
+                  if (!street1 || !city || !state || !zip) {
+                    formError = 'Selecciona una dirección válida de la lista de Google.';
+                    formValidating = false;
+                    renderSteps(); return;
+                  }
+                  formValidating = true; formError = '';
+                  renderSteps();
+                  try {
+                    const response = await fetch('/validar-direccion', {
+                      method: 'POST',
+                      headers: {'Content-Type':'application/json'},
+                      body: JSON.stringify({ street1, street2, city, state, zip })
+                    });
+                    const data = await response.json();
+                    if (data.status === 'valid') {
+                      document.getElementById('etiquetaResult').innerHTML = "Generando etiqueta...";
+                      try {
+                        const etiquetaResp = await fetch('/generar-etiqueta', {
+                          method: 'POST',
+                          headers: {'Content-Type':'application/json'},
+                          body: JSON.stringify({
+                            to_address: {
+                              name: nombre,
+                              street1,
+                              street2,
+                              city,
+                              state,
+                              zip,
+                              country: "US",
+                              phone: contacto
+                            },
+                            from_address: DEFAULT_FROM_ADDRESS,
+                            parcel: DEFAULT_PARCEL,
+                            contacto,
+                            payment_method: payment.value,
+                            payment_value: paymentValue
+                          })
+                        });
+                        const etiquetaData = await etiquetaResp.json();
+                        if (etiquetaData.status === 'success') {
+                          window.formState = {
+                            nombre: "",
+                            contacto: "",
+                            autocomplete: "",
+                            street1: "",
+                            street2: "",
+                            city: "",
+                            state: "",
+                            zip: ""
+                          };
+                          lastResumenData = {
+                            label_url: etiquetaData.label_url,
+                            tracking_code: etiquetaData.tracking_code,
+                            envio: {
+                              model: selection.model,
+                              carrier: selection.carrier,
+                              storage: selection.storage,
+                              condition: selection.condition,
+                              nombre,
+                              direccion: { street1, street2, city, state, zip },
+                              contacto,
+                              metodo: payment.value,
+                              metodo_id: paymentValue
+                            }
+                          };
+                          formSubmitted = true;
+                          formValidating = false;
+                          renderSteps();
+                        } else {
+                          document.getElementById('etiquetaResult').innerHTML = "Error generando etiqueta: " + (etiquetaData.message || "Error desconocido");
+                          formValidating = false;
+                        }
+                      } catch (err) {
+                        document.getElementById('etiquetaResult').innerHTML = "Error generando etiqueta: " + err.message;
+                        formValidating = false;
+                      }
+                    } else if (data.status === 'suggestion') {
+                      formError = '¿Quizá quisiste decir: ' +
+                        data.suggestion.street1 + ', ' +
+                        (data.suggestion.street2 ? (data.suggestion.street2 + ', ') : '') +
+                        data.suggestion.city + ', ' + data.suggestion.state + ', ' + data.suggestion.zip +
+                        '? Corrige la dirección, por favor.';
+                      formValidating = false;
+                      renderSteps();
+                    } else {
+                      formError = data.message || 'Dirección no válida. Revisa tus datos.';
+                      formValidating = false;
+                      renderSteps();
+                    }
+                  } catch (err) {
+                    formError = 'Error validando la dirección. Intenta de nuevo.';
+                    formValidating = false;
+                    renderSteps();
+                  }
+                });
+              }, 0);
+            }
+            resultSection.appendChild(formSection);
+          }
+        } else {
+          resultSection.innerHTML = `<div class="no-offer">No hay oferta para esta combinación.</div>`;
+        }
+        if (!formSubmitted) {
+          const restartBtn = document.createElement('button');
+          restartBtn.className = 'restart-btn';
+          restartBtn.textContent = 'Volver a calcular';
+          restartBtn.onclick = () => {
+            selection = { model:null, carrier:null, storage:null, condition:null };
+            openStep = 0;
+            showForm = false;
+            window.paymentButtonState = { selected: null, confirmValue: "", error: "" };
+            window.formState = {
+              nombre: "",
+              contacto: "",
+              autocomplete: "",
+              street1: "",
+              street2: "",
+              city: "",
+              state: "",
+              zip: ""
+            };
+            renderSteps();
+          };
+          resultSection.appendChild(restartBtn);
+        }
+        stepsDiv.appendChild(resultSection);
+      }
+    }
+
+    function renderSummaryPage(data) {
+      if (!data) return;
+      const {envio, label_url, tracking_code} = data;
+      document.getElementById("mainContent").innerHTML = `
+        <div class="summary-page">
+          <div class="summary-title">¡Gracias por tu envío!</div>
+          <div class="summary-section">
+            <div class="summary-label">Teléfono enviado:</div>
+            <div class="summary-value">
+              ${envio.model ? envio.model : ''} ${envio.storage ? envio.storage : ''}  
+              ${envio.carrier ? `(${envio.carrier})` : ''}  
+              ${envio.condition ? `<span style="font-weight:400;color:#888;">- ${envio.condition}</span>` : ''}
+            </div>
+          </div>
+          <div class="summary-section">
+            <div class="summary-label">Destinatario:</div>
+            <div class="summary-value">${envio.nombre || ''}</div>
+            <div class="summary-label">Dirección:</div>
+            <div class="summary-value">${envio.direccion.street1 || ''} ${envio.direccion.street2 || ''}, ${envio.direccion.city || ''}, ${envio.direccion.state || ''}, ${envio.direccion.zip || ''}</div>
+          </div>
+          <div class="summary-section">
+            <div class="summary-label">Método de pago:</div>
+            <div class="summary-value">${envio.metodo || ''} - ${envio.metodo_id || ''}</div>
+          </div>
+          <div class="summary-disclaimer">
+            <b>Declaro bajo protesta de decir verdad:</b><br>
+            El equipo enviado no es robado ni financiado, no tiene reporte de robo ni está sujeto a pagos pendientes.<br>
+            Soy el legítimo propietario y asumo toda responsabilidad legal en caso de que la información sea falsa. Acepto que cualquier falsedad o intento de fraude será reportado a las autoridades correspondientes y perderé derecho a pago.<br>
+            <br>
+            <b>¡Gracias por confiar en nosotros!</b>
+          </div>
+          <div class="summary-guide">
+            <b>Número de guía:</b> <span style="font-size:1.13em;">${tracking_code || ''}</span>
+          </div>
+          <a class="summary-btn" href="${label_url}" target="_blank" rel="noopener noreferrer">Descargar etiqueta de envío (PDF)</a>
+        </div>
+      `;
+    }
+
+    (async function init(){
+      try {
+        const res = await fetch(ENDPOINT);
+        const data = await res.json();
+        offers = Array.isArray(data) ? data : (Array.isArray(data.offers) ? data.offers : []);
+      } catch (e) {
+        offers = [];
+        document.getElementById('steps').innerHTML = `<div class="error-msg">Error al cargar datos.</div>`;
+        return;
+      }
+      renderSteps();
+    })();
+  </script>
+</body>
+</html>
