@@ -210,14 +210,13 @@
   </nav>
   <main>
     <div class="container" id="mainContent">
-      <h1>Vende tu iPhone</h1>
+      <h1>Describe your device</h1>
       <div class="steps" id="steps"></div>
     </div>
   </main>
   <script src="/env.js"></script>
   <script>
-    // ENDPOINT ahora se obtiene del objeto de configuración inyectado por el backend
-    const ENDPOINT = window.APP_CONFIG.OFFERS_ENDPOINT;
+        const ENDPOINT = window.APP_CONFIG.OFFERS_ENDPOINT;
 
     // Remitente y dimensiones fijos
     const DEFAULT_FROM_ADDRESS = {
@@ -318,10 +317,10 @@
       }
     ];
     const STEPS = [
-      { key: 'model',      label: 'Selecciona el modelo',    withImage: true, images: modelImages },
-      { key: 'carrier',    label: 'Selecciona la compañía',  withImage: true, images: carrierImages },
-      { key: 'storage',    label: 'Selecciona la capacidad', withImage: false },
-      { key: 'condition',  label: 'Selecciona la condición', withImage: false }
+      { key: 'model',      label: 'Select Model',    withImage: true, images: modelImages },
+      { key: 'carrier',    label: 'Select Carrier',  withImage: true, images: carrierImages },
+      { key: 'storage',    label: 'Select Storage', withImage: false },
+      { key: 'condition',  label: 'Select Condition', withImage: false }
     ];
     let offers = [];
     let selection = { model:null, carrier:null, storage:null, condition:null };
@@ -459,11 +458,11 @@
                o.storage === selection.storage && o.condition === selection.condition
         );
         if (match) {
-          resultSection.innerHTML = `<div class="result-offer">¡Tu oferta es:<br><strong>$${match.offer} USD</strong></div>`;
+          resultSection.innerHTML = `<div class="result-offer">Your offer is:<br><strong>$${match.offer} USD</strong></div>`;
           if (!showForm) {
             const acceptBtn = document.createElement('button');
             acceptBtn.className = 'accept-btn';
-            acceptBtn.textContent = 'Aceptar oferta';
+            acceptBtn.textContent = 'Secure offer now';
             acceptBtn.onclick = () => {
               showForm = true;
               formSubmitted = false;
@@ -481,12 +480,12 @@
               formSection.innerHTML = `
                 <form id="sellForm" autocomplete="off">
                   <div class="form-group">
-                    <label for="nombre">Nombre completo</label>
+                    <label for="nombre">Full Name</label>
                     <input required id="nombre" name="nombre" type="text" autocomplete="name" />
                   </div>
                   <div class="form-group">
-                    <label for="autocomplete">Dirección de envío</label>
-                    <input id="autocomplete" type="text" placeholder="Empieza a escribir tu dirección..." autocomplete="off" required>
+                    <label for="autocomplete">Send from Address</label>
+                    <input id="autocomplete" type="text" placeholder="Start typing your address..." autocomplete="off" required>
                     <input id="street1" name="street1" type="hidden" required>
                     <input id="street2" name="street2" type="hidden">
                     <input id="city" name="city" type="hidden" required>
@@ -495,13 +494,13 @@
                   </div>
                   <div id="paymentButtonsContainer"></div>
                   <div class="form-group">
-                    <label for="contacto">Correo o teléfono de contacto</label>
+                    <label for="contacto">CONTACT email to receive shipping label</label>
                     <input required id="contacto" name="contacto" type="text" autocomplete="email"/>
                   </div>
                   <div class="form-note">
-                    <em>Solo se aceptan direcciones de USA.<br>Tu información es confidencial y solo se usará para procesar el pago y envío.</em>
+                    <em>Only US addresses allowed.<br>Your information is confidential and will be used for shipping and payment purposes only.</em>
                   </div>
-                  <button class="submit-btn" type="submit" ${formValidating?'disabled':''}>${formValidating?'Validando dirección...':'Enviar información'}</button>
+                  <button class="submit-btn" type="submit" ${formValidating?'disabled':''}>${formValidating?'Validating address...':'Send information'}</button>
                   ${formError ? `<div class="form-error">${formError}</div>` : ''}
                   <div id="etiquetaResult" style="margin-top:1.2rem"></div>
                 </form>
@@ -758,7 +757,7 @@
         if (!formSubmitted) {
           const restartBtn = document.createElement('button');
           restartBtn.className = 'restart-btn';
-          restartBtn.textContent = 'Volver a calcular';
+          restartBtn.textContent = 'Start again';
           restartBtn.onclick = () => {
             selection = { model:null, carrier:null, storage:null, condition:null };
             openStep = 0;
