@@ -1,11 +1,13 @@
 const express = require('express');
 const axios = require('axios');
 const EasyPost = require('@easypost/api');
+const path = require('path');
+const fs = require('fs');
 require('dotenv').config();
 
 const sendLabelEmail = require('./mailgun-send');
+const { imageToPDF } = require('./mailgun-send'); // asegúrate de exportar esto en mailgun-send.js
 
-// Inicializa tu instancia de EasyPost API
 const api = new EasyPost(process.env.EASYPOST_API_KEY);
 
 const router = express.Router();
@@ -47,7 +49,7 @@ router.post('/validar-direccion', async (req, res) => {
   }
 });
 
-// Endpoint para generar etiqueta con EasyPost y enviar por email
+// Endpoint para generar etiqueta con EasyPost y enviar por email y devolver PDF como link
 router.post('/generar-etiqueta', async (req, res) => {
   try {
     // Filtra solo los campos permitidos para EasyPost
@@ -82,36 +84,51 @@ router.post('/generar-etiqueta', async (req, res) => {
       weight: req.body.weight,
     };
 
-    // Solo envía los campos válidos. NO agregues payment_value ni payment_method ni ningún otro campo personalizado.
+    // Crea el envío en EasyPost
     const shipment = await api.Shipment.create({
       to_address: toAddress,
       from_address: fromAddress,
       parcel: parcel,
-      // Puedes agregar otros campos válidos de EasyPost aquí si lo necesitas, pero nunca campos personalizados.
     });
 
-    // Toma el email y la url de la etiqueta
-    const destinatario = toAddress.email; // O usa otro campo si quieres enviar a un admin
+    // Email del destinatario y URL de la etiqueta (PNG normalmente)
+    const destinatario = toAddress.email;
     const labelUrl = shipment.postage_label.label_url;
     const subject = 'Tu etiqueta de envío de ICellShop';
     const text = 'Adjuntamos la etiqueta de tu envío. Imprímela y colócala en el paquete.';
 
-    // Envía el correo con la etiqueta adjunta (PDF)
+    // 1. Genera PDF temporal desde la imagen (PNG)
+    const pdfPath = await imageToPDF(labelUrl);
+
+    // 2. Copia a una carpeta pública para servirlo (por ejemplo, public/tmp/)
+    const publicPath = path.join(__dirname, 'public', 'tmp');
+    if (!fs.existsSync(publicPath)) fs.mkdirSync(publicPath, { recursive: true });
+    const pdfFileName = `etiqueta_${Date.now()}.pdf`;
+    const finalPdfPath = path.join(publicPath, pdfFileName);
+    fs.copyFileSync(pdfPath, finalPdfPath);
+
+    // 3. Borra el archivo temporal creado por imageToPDF
+    fs.unlinkSync(pdfPath);
+
+    // 4. Crea la URL pública (asumiendo que sirves /public como estático y /tmp es accesible)
+    const labelPdfUrl = `/tmp/${pdfFileName}`;
+
+    // 5. Envía el correo con el PDF adjunto (finalPdfPath)
     try {
-      await sendLabelEmail(destinatario, subject, text, labelUrl);
+      await sendLabelEmail(destinatario, subject, text, finalPdfPath);
       console.log('Correo enviado a', destinatario);
     } catch (err) {
       console.error('Error enviando correo:', err);
       // Si falla el correo, igual devuelve la etiqueta por respuesta
-      // Puedes decidir si quieres marcar esto como error o no
     }
 
     res.json({
       status: 'success',
+      label_url: labelPdfUrl,  // Ahora es PDF
+      tracking_code: shipment.tracking_code,
       shipment,
     });
   } catch (error) {
-    // Intenta parsear el error de EasyPost
     let msg = error.message;
     if (error.response && error.response.body) {
       msg = error.response.body.error || JSON.stringify(error.response.body);
