@@ -97,6 +97,10 @@
       <div class="steps" id="steps"></div>
     </div>
   </div>
+   <script src="/env.js"></script>
+  <script>
+    // ENDPOINT ahora se obtiene del objeto de configuración inyectado por el backend
+    const ENDPOINT = window.APP_CONFIG.OFFERS_ENDPOINT;
   <script>
     // Remitente y dimensiones fijos
     const DEFAULT_FROM_ADDRESS = {
@@ -173,7 +177,7 @@
         placeholder: "Cuenta bancaria o routing number"
       }
     ];
-    const ENDPOINT = 'https://script.google.com/macros/s/AKfycbyEb0QH7Z7Ucg9dfg0JqYGj51H57cNElfLSCu-vhGR_T8Yh9dgjMqjMpEVjaKcva3UC_w/exec';
+    
     const STEPS = [
       { key: 'model',      label: 'Selecciona el modelo',    withImage: true, images: modelImages },
       { key: 'carrier',    label: 'Selecciona la compañía',  withImage: true, images: carrierImages },
