@@ -37,6 +37,8 @@ app.get('/index.html', (req, res) => {
   res.redirect('/');
 });
 
+app.use('/tmp', express.static(path.join(__dirname, 'public', 'tmp')));
+
 // Endpoint para validar dirección con Google Geocoding API
 app.post('/validar-direccion', async (req, res) => {
   let address = req.body.address;
