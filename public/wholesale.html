@@ -93,13 +93,43 @@
       padding: 0 15px;
       text-align: center;
     }
-    .wholesale-section {
+
+    .wholesale-flex-row {
+      display: flex;
+      flex-direction: row;
+      align-items: stretch;
+      justify-content: center;
+      gap: 36px;
       margin: 50px auto 32px auto;
       background: #fff;
       border-radius: 22px;
       box-shadow: var(--btn-shadow);
+      max-width: 950px;
       padding: 2.2rem 1.8rem 2.7rem 1.8rem;
-      max-width: 700px;
+    }
+    .wholesale-img-col {
+      flex: 0 0 340px;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+    }
+    .wholesale-img-col img {
+      max-width: 330px;
+      width: 100%;
+      border-radius: 17px;
+      display: block;
+      margin: 0 auto;
+      box-shadow: 0 3px 18px rgba(0,113,227,0.06);
+      background: #eaf1fb;
+    }
+    .wholesale-content-col {
+      flex: 1 1 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      align-items: flex-start;
+      min-width: 0;
+      text-align: left;
     }
     .wholesale-title {
       font-size: 2.3rem;
@@ -107,6 +137,7 @@
       color: var(--primary);
       margin-bottom: 16px;
       letter-spacing: -1px;
+      margin-top: 0;
     }
     .wholesale-desc {
       font-size: 1.19rem;
@@ -117,22 +148,6 @@
       font-size: 1.07rem;
       color: var(--text-light);
       margin-bottom: 24px;
-    }
-    .wholesale-img-placeholder {
-      width: 95%;
-      max-width: 430px;
-      height: 164px;
-      margin: 0 auto 24px auto;
-      border-radius: 17px;
-      background: #eaf1fb;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: #abb8d6;
-      font-size: 1.2rem;
-      font-style: italic;
-      box-shadow: 0 3px 18px rgba(0,113,227,0.06);
-      border: 1.5px dashed #b8c9e0;
     }
     .contact-form-wrapper {
       background: #fff;
@@ -213,12 +228,20 @@
     .contact-form-error {
       color: #d00;
     }
-    @media (max-width: 900px) {
-      .wholesale-section {
+    @media (max-width: 1100px) {
+      .wholesale-flex-row {
+        flex-direction: column;
+        gap: 8px;
         max-width: 99vw;
-        padding: 2.2rem 0.5rem 2.7rem 0.5rem;
+        padding: 1.4rem 0.5rem 2rem 0.5rem;
       }
-      .contact-form-wrapper { max-width: 98vw; }
+      .wholesale-img-col {
+        justify-content: center;
+        margin-bottom: 24px;
+      }
+      .wholesale-img-col img {
+        max-width: 95vw;
+      }
     }
     @media (max-width: 700px) {
       .nav-bar {
@@ -231,6 +254,9 @@
       .nav-links {
         gap: 13px;
       }
+      .contact-form-wrapper { max-width: 98vw; }
+      .wholesale-img-col img { max-width: 97vw; }
+      .wholesale-title { font-size: 1.5rem; }
     }
   </style>
 </head>
@@ -256,50 +282,53 @@
     </div>
   </nav>
   <main>
-    <section class="wholesale-section">
-      <div class="wholesale-title">Wholesale Devices</div>
-      <div class="wholesale-desc">
-        Looking to buy or sell devices in bulk?<br>
-        At <b>iCellShop</b> we also offer wholesale sales for distributors, stores, and businesses.<br>
-        <br>
-        We provide <b>domestic and international shipping</b> with the best rates and personalized support.<br>
-        Contact us to receive a special quote or to resolve any questions about wholesale buying and selling.
+    <div class="wholesale-flex-row">
+      <div class="wholesale-img-col">
+        <img 
+          src="https://videos.openai.com/vg-assets/assets%2Ftask_01jyvgdse3edcs07zh5cjvezax%2F1751122451_img_1.webp?st=2025-06-28T13%3A04%3A20Z&se=2025-07-04T14%3A04%3A20Z&sks=b&skt=2025-06-28T13%3A04%3A20Z&ske=2025-07-04T14%3A04%3A20Z&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skoid=8ebb0df1-a278-4e2e-9c20-f2d373479b3a&skv=2019-02-02&sv=2018-11-09&sr=b&sp=r&spr=https%2Chttp&sig=8I4YbDrg0CBkjhyR9rpeodiX181xx3MLHp8Ti%2FnELJ8%3D&az=oaivgprodscus" 
+          alt="Wholesale sales"
+        />
       </div>
-      <div class="wholesale-sub">Special prices for bulk orders, warranty and personalized assistance.</div>
-   <div class="wholesale-img-placeholder" style="background:transparent; border:none; box-shadow:none; padding:0;">
-  <img 
-    src="https://videos.openai.com/vg-assets/assets%2Ftask_01jyvgdse3edcs07zh5cjvezax%2F1751122451_img_1.webp?st=2025-06-28T13%3A04%3A20Z&se=2025-07-04T14%3A04%3A20Z&sks=b&skt=2025-06-28T13%3A04%3A20Z&ske=2025-07-04T14%3A04%3A20Z&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skoid=8ebb0df1-a278-4e2e-9c20-f2d373479b3a&skv=2019-02-02&sv=2018-11-09&sr=b&sp=r&spr=https%2Chttp&sig=8I4YbDrg0CBkjhyR9rpeodiX181xx3MLHp8Ti%2FnELJ8%3D&az=oaivgprodscus" 
-    alt="Wholesale sales" 
-    style="max-width:100%; border-radius:17px; display:block; margin:0 auto;"
-  />
-</div>
-    </section>
-    <div class="contact-form-wrapper" id="contact-form-wrapper">
-      <div class="contact-form-title">Request a Wholesale Quote / Contact Us</div>
-      <form id="contactForm" autocomplete="off">
-        <div class="contact-form-group">
-          <label for="name">Name</label>
-          <input required id="name" name="name" type="text" autocomplete="name" />
+      <div class="wholesale-content-col">
+        <div class="wholesale-title">Wholesale Devices</div>
+        <div class="wholesale-desc">
+          Looking to buy or sell devices in bulk?<br>
+          At <b>iCellShop</b> we also offer wholesale sales for distributors, stores, and businesses.<br>
+          <br>
+          We provide <b>domestic and international shipping</b> with the best rates and personalized support.<br>
+          Contact us to receive a special quote or to resolve any questions about wholesale buying and selling.
         </div>
-        <div class="contact-form-group">
-          <label for="email">Email</label>
-          <input required id="email" name="email" type="email" autocomplete="email" />
+        <div class="wholesale-sub">
+          Special prices for bulk orders, warranty and personalized assistance.
         </div>
-        <div class="contact-form-group">
-          <label for="phone">Phone Number</label>
-          <input required id="phone" name="phone" type="tel" autocomplete="tel" pattern="[0-9+\-\s()]{7,}" placeholder="+1 123 456 7890" />
+        <div class="contact-form-wrapper" id="contact-form-wrapper">
+          <div class="contact-form-title">Request a Wholesale Quote / Contact Us</div>
+          <form id="contactForm" autocomplete="off">
+            <div class="contact-form-group">
+              <label for="name">Name</label>
+              <input required id="name" name="name" type="text" autocomplete="name" />
+            </div>
+            <div class="contact-form-group">
+              <label for="email">Email</label>
+              <input required id="email" name="email" type="email" autocomplete="email" />
+            </div>
+            <div class="contact-form-group">
+              <label for="phone">Phone Number</label>
+              <input required id="phone" name="phone" type="tel" autocomplete="tel" pattern="[0-9+\-\s()]{7,}" placeholder="+1 123 456 7890" />
+            </div>
+            <div class="contact-form-group">
+              <label for="subject">Subject</label>
+              <input required id="subject" name="subject" type="text" placeholder="What is your question about?" />
+            </div>
+            <div class="contact-form-group">
+              <label for="message">Message</label>
+              <textarea required id="message" name="message" rows="4" placeholder="How can we help you?"></textarea>
+            </div>
+            <button class="contact-form-btn" type="submit">Send Message</button>
+            <div id="formMsg"></div>
+          </form>
         </div>
-        <div class="contact-form-group">
-          <label for="subject">Subject</label>
-          <input required id="subject" name="subject" type="text" placeholder="What is your question about?" />
-        </div>
-        <div class="contact-form-group">
-          <label for="message">Message</label>
-          <textarea required id="message" name="message" rows="4" placeholder="How can we help you?"></textarea>
-        </div>
-        <button class="contact-form-btn" type="submit">Send Message</button>
-        <div id="formMsg"></div>
-      </form>
+      </div>
     </div>
   </main>
   <script>
