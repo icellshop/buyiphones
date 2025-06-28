@@ -31,6 +31,15 @@ app.get('/sell-device', (req, res) => {
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
+// Ruta para Contact
+app.get('/contact', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'contact.html'));
+});
+// Ruta para who are we
+app.get('/we-are', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'we-are.html'));
+});
+
 
 // (opcional) Redirección para /index.html
 app.get('/index.html', (req, res) => {
