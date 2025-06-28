@@ -40,6 +40,10 @@ app.get('/we-are', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'we-are.html'));
 });
 
+// Ruta para wholesale
+app.get('/wholesale', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'wholesale.html'));
+});
 
 // (opcional) Redirección para /index.html
 app.get('/index.html', (req, res) => {
