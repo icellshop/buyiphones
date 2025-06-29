@@ -9,15 +9,16 @@ const PORT = process.env.PORT || 3000;
 
 const api = new EasyPost(process.env.EASYPOST_API_KEY);
 const sendLabelEmail = require('./mailgun-send');
-const sendContactRouter = require('./api-send-contact');
-
-app.use(sendContactRouter);
+const mailgunRouter = require('./mailgun-send').router; // <- Importa el router que contiene /api/send-contact
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Servir archivos estáticos de la carpeta 'public'
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Usa el router de mailgun para el endpoint de contacto
+app.use(mailgunRouter);
 
 app.get('/env.js', (req, res) => {
   res.type('application/javascript');
