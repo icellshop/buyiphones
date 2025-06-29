@@ -130,7 +130,7 @@ router.post('/api/send-contact', async (req, res) => {
 
   const mailData = {
     from: `Contact Form <no-reply@${DOMAIN}>`,
-    to: 'TU_CORREO@tudominio.com', // Cambia por tu correo real de recepción
+    to: 'contacto@icellshop.mx', 
     subject: `[Contact] ${subject}`,
     text: `
       Name: ${name}
