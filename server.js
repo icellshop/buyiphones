@@ -9,6 +9,9 @@ const PORT = process.env.PORT || 3000;
 
 const api = new EasyPost(process.env.EASYPOST_API_KEY);
 const sendLabelEmail = require('./mailgun-send');
+const sendContactRouter = require('./api-send-contact');
+
+app.use(sendContactRouter);
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
