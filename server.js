@@ -10,7 +10,10 @@ const PORT = process.env.PORT || 3000;
 const api = new EasyPost(process.env.EASYPOST_API_KEY);
 const sendLabelEmail = require('./mailgun-send');
 const mailgunRouter = require('./mailgun-send').router; // <- Importa el router que contiene /api/send-contact
+const offersCatalogRouter = require('./offerscatalog');
 
+
+app.use(offersCatalogRouter);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
