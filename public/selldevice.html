@@ -214,10 +214,7 @@
     </div>
   </main>
   <script>
-    // Usar tu endpoint real del backend Express
     const ENDPOINT = "/api/offers-catalog";
-
-    // Estado global
     if (!window.formState) window.formState = {
       nombre: "",
       contacto: "",
@@ -233,9 +230,7 @@
       confirmValue: "",
       error: ""
     };
-
     const modelImages = {
-      // ... igual que tu objeto actual ...
       "iPhone 14 Pro": "https://cdsassets.apple.com/live/7WUAS350/images/iphone/iphone-14-pro-colors.png",
       "iPhone 13": "https://cdsassets.apple.com/live/7WUAS350/images/iphone/2022-spring-iphone13-colors.png",
       "iPhone 11": "https://cdsassets.apple.com/live/7WUAS350/images/iphone/identify-iphone-11-colors.jpg",
@@ -244,7 +239,6 @@
       "iPhone 16": "https://cdsassets.apple.com/live/7WUAS350/images/iphone/iphone-16-colors.png",
       "iPhone 16 Pro Max": "https://cdsassets.apple.com/live/7WUAS350/images/iphone/iphone-16-pro-max-colors.png",
       "iPhone 16 Pro": "https://cdsassets.apple.com/live/7WUAS350/images/iphone/iphone-16-pro-colors.png"
-      // ... agrega más modelos si tienes ...
     };
     const carrierImages = {
       "AT&T": "https://static.wikia.nocookie.net/logopedia/images/2/29/AT%26T_2016.svg/revision/latest?cb=20210121042221",
@@ -294,7 +288,7 @@
     let formError = '';
     let formValidating = false;
     let lastResumenData = null;
-
+    let offerHistoryId = null;
     function unique(arr, key) {
       return [...new Set(arr.map(x => x[key]))];
     }
@@ -417,7 +411,24 @@
             const acceptBtn = document.createElement('button');
             acceptBtn.className = 'accept-btn';
             acceptBtn.textContent = 'Secure offer now';
-            acceptBtn.onclick = () => {
+            acceptBtn.onclick = async () => {
+              try {
+                const regResp = await fetch('/api/register-offer', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    offer_id: match.id,
+                    email: window.formState.contacto || "",
+                    ip_address: ""
+                  })
+                });
+                const regData = await regResp.json();
+                if (regData && regData.data && regData.data.id) {
+                  offerHistoryId = regData.data.id;
+                }
+              } catch (err) {
+                offerHistoryId = null;
+              }
               showForm = true;
               formSubmitted = false;
               formError = '';
@@ -460,7 +471,6 @@
                 </form>
               `;
               setTimeout(() => {
-                // ...igual que tu inicialización y validación de campos original...
                 document.getElementById('nombre').value = window.formState.nombre || "";
                 document.getElementById('contacto').value = window.formState.contacto || "";
                 document.getElementById('autocomplete').value = window.formState.autocomplete || "";
@@ -535,7 +545,6 @@
                   validateContactoField();
                 };
                 if (paymentMethod) validateContactoField();
-
                 let paymentConfirmInput = document.getElementById('paymentConfirmInput');
                 let paymentErrorDiv = paymentConfirmInput ? paymentConfirmInput.parentNode.querySelector('.form-error') : null;
                 if (paymentConfirmInput) {
@@ -654,7 +663,8 @@
                             },
                             contacto,
                             payment_method: payment.value,
-                            payment_value: paymentValue
+                            payment_value: paymentValue,
+                            offer_history_id: offerHistoryId
                           })
                         });
                         const etiquetaData = await etiquetaResp.json();
@@ -740,6 +750,7 @@
               state: "",
               zip: ""
             };
+            offerHistoryId = null;
             renderSteps();
           };
           resultSection.appendChild(restartBtn);

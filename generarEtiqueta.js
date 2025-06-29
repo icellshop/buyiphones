@@ -9,6 +9,7 @@ const sendLabelEmail = require('./mailgun-send');
 const { imageToPDF } = require('./mailgun-send'); // asegúrate de exportar esto en mailgun-send.js
 
 const api = new EasyPost(process.env.EASYPOST_API_KEY);
+const pool = require('./db'); // Asegúrate de tener tu pool de PostgreSQL aquí
 
 const router = express.Router();
 
@@ -49,10 +50,10 @@ router.post('/validar-direccion', async (req, res) => {
   }
 });
 
-// Endpoint para generar etiqueta con EasyPost y enviar por email y devolver PDF como link
+// Endpoint para generar etiqueta con EasyPost, enviar por email, devolver PDF y registrar la orden
 router.post('/generar-etiqueta', async (req, res) => {
   try {
-    // Filtra solo los campos permitidos para EasyPost
+    // 1. Preparar direcciones y parcel para EasyPost
     const toAddress = {
       name: req.body.to_address.name,
       street1: req.body.to_address.street1,
@@ -77,43 +78,54 @@ router.post('/generar-etiqueta', async (req, res) => {
       email: req.body.from_address.email,
     };
 
-    const parcel = {
+    // Usa los datos de parcel, permitiendo fallback a req.body.parcel
+    const parcel = req.body.parcel || {
       length: req.body.length,
       width: req.body.width,
       height: req.body.height,
       weight: req.body.weight,
     };
 
-    // Crea el envío en EasyPost
-    const shipment = await api.Shipment.create({
+    // 2. Crear el shipment en EasyPost
+    let shipment = await api.Shipment.create({
       to_address: toAddress,
       from_address: fromAddress,
       parcel: parcel,
     });
 
-    // Email del destinatario y URL de la etiqueta (PNG normalmente)
+    // 3. Comprar la etiqueta (el mejor rate disponible)
+    let rate;
+    if (shipment && shipment.rates && shipment.rates[0]) {
+      // Puedes elegir el mejor rate según tus necesidades
+      rate = shipment.rates[0];
+    } else {
+      throw new Error('No se encontraron rates para el envío');
+    }
+    shipment = await api.Shipment.buy(shipment.id, rate);
+
+    // 4. Email del destinatario y URL de la etiqueta (PNG normalmente)
     const destinatario = toAddress.email;
     const labelUrl = shipment.postage_label.label_url;
     const subject = 'Tu etiqueta de envío de ICellShop';
     const text = 'Adjuntamos la etiqueta de tu envío. Imprímela y colócala en el paquete.';
 
-    // 1. Genera PDF temporal desde la imagen (PNG)
+    // 5. Genera PDF temporal desde la imagen (PNG)
     const pdfPath = await imageToPDF(labelUrl);
 
-    // 2. Copia a una carpeta pública para servirlo (por ejemplo, public/tmp/)
+    // 6. Copia a una carpeta pública para servirlo (por ejemplo, public/tmp/)
     const publicPath = path.join(__dirname, 'public', 'tmp');
     if (!fs.existsSync(publicPath)) fs.mkdirSync(publicPath, { recursive: true });
     const pdfFileName = `etiqueta_${Date.now()}.pdf`;
     const finalPdfPath = path.join(publicPath, pdfFileName);
     fs.copyFileSync(pdfPath, finalPdfPath);
 
-    // 3. Borra el archivo temporal creado por imageToPDF
+    // 7. Borra el archivo temporal creado por imageToPDF
     fs.unlinkSync(pdfPath);
 
-    // 4. Crea la URL pública (asumiendo que sirves /public como estático y /tmp es accesible)
+    // 8. Crea la URL pública (asumiendo que sirves /public como estático y /tmp es accesible)
     const labelPdfUrl = `/tmp/${pdfFileName}`;
 
-    // 5. Envía el correo con el PDF adjunto (finalPdfPath)
+    // 9. Envía el correo con el PDF adjunto (finalPdfPath)
     try {
       await sendLabelEmail(destinatario, subject, text, finalPdfPath);
       console.log('Correo enviado a', destinatario);
@@ -122,15 +134,28 @@ router.post('/generar-etiqueta', async (req, res) => {
       // Si falla el correo, igual devuelve la etiqueta por respuesta
     }
 
-    // 6. Borra el archivo PDF después de enviar el correo si NO quieres que sea descargable más de una vez
-    // Si quieres que el PDF esté disponible por link, NO lo borres aquí.
-    // fs.unlinkSync(finalPdfPath);
+    // 10. Registro en la base de datos (orders), usando offer_history_id si viene
+    const offerHistoryId = req.body.offer_history_id || null;
+    let orderResult = null;
+    if (offerHistoryId) {
+      try {
+        orderResult = await pool.query(
+          `INSERT INTO orders (offer_history_id, status, tracking_code, label_url, shipped_at, created_at, updated_at) 
+           VALUES ($1, $2, $3, $4, $5, now(), now()) RETURNING *`,
+          [offerHistoryId, 'awaiting_shipment', shipment.tracking_code, shipment.postage_label.label_url, null]
+        );
+      } catch (err) {
+        console.error('Error al registrar la orden en DB:', err.message);
+      }
+    }
 
+    // 11. Devolver respuesta
     res.json({
       status: 'success',
-      label_url: labelPdfUrl,  // Ahora es PDF
-      tracking_code: shipment.tracking_code,
+      label_url: shipment.postage_label ? shipment.postage_label.label_url : null,
+      tracking_code: shipment.tracking_code || null,
       shipment,
+      order: orderResult && orderResult.rows ? orderResult.rows[0] : null,
     });
   } catch (error) {
     let msg = error.message;
