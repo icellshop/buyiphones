@@ -13,8 +13,7 @@ const mailgunRouter = require('./mailgun-send').router;
 const offersCatalogRouter = require('./offerscatalog');
 const pool = require('./db'); // <-- Tu conexión a Postgres
 const easypostWebhook = require('./routes/easypost-webhook');
-const easypostWebhook = require('./routes/easypost-webhook');
-const easypostWebhook = require('./routes/easypost-webhook');
+
 
 
 app.use('/api/easypost-webhook', easypostWebhook);
