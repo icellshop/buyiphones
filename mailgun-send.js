@@ -5,6 +5,10 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
+// Si usas Express, trae el router:
+const express = require('express');
+const router = express.Router();
+
 /**
  * Descarga imagen desde una URL y la convierte a PDF temporal.
  */
@@ -104,6 +108,50 @@ async function sendLabelEmail(to, subject, text, labelUrl) {
   });
 }
 
+// ---- NUEVO ENDPOINT /api/send-contact ----
+const DOMAIN = process.env.MAILGUN_DOMAIN;
+const mg = mailgun({ apiKey: process.env.MAILGUN_API_KEY, domain: DOMAIN });
+
+router.post('/api/send-contact', async (req, res) => {
+  const { name, email, phone, subject, message } = req.body;
+
+  if (!name || !email || !phone || !subject || !message) {
+    return res.status(400).json({ error: 'Please fill in all fields.' });
+  }
+
+  const html = `
+    <h2>Contact Form Submission</h2>
+    <p><b>Name:</b> ${name}</p>
+    <p><b>Email:</b> ${email}</p>
+    <p><b>Phone:</b> ${phone}</p>
+    <p><b>Subject:</b> ${subject}</p>
+    <p><b>Message:</b><br>${message.replace(/\n/g, '<br>')}</p>
+  `;
+
+  const mailData = {
+    from: `Contact Form <no-reply@${DOMAIN}>`,
+    to: 'TU_CORREO@tudominio.com', // Cambia por tu correo real de recepción
+    subject: `[Contact] ${subject}`,
+    text: `
+      Name: ${name}
+      Email: ${email}
+      Phone: ${phone}
+      Subject: ${subject}
+      Message: ${message}
+    `,
+    html
+  };
+
+  try {
+    await mg.messages().send(mailData);
+    res.json({ status: 'success' });
+  } catch (err) {
+    console.error('Mailgun error:', err);
+    res.status(500).json({ error: 'Could not send email.' });
+  }
+});
+
+// Exporta funciones y router para Express
 module.exports = sendLabelEmail;
 module.exports.imageToPDF = imageToPDF;
-
+module.exports.router = router;
