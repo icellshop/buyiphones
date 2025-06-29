@@ -12,10 +12,18 @@ const sendLabelEmail = require('./mailgun-send');
 const mailgunRouter = require('./mailgun-send').router;
 const offersCatalogRouter = require('./offerscatalog');
 const pool = require('./db'); // <-- Tu conexión a Postgres
+const easypostWebhook = require('./routes/easypost-webhook');
+const easypostWebhook = require('./routes/easypost-webhook');
+const easypostWebhook = require('./routes/easypost-webhook');
 
+
+app.use('/api/easypost-webhook', easypostWebhook);
+app.use(easypostWebhook);
+app.use(express.json({ type: ['application/json', 'application/*+json'] })); // Necesario para webhooks de EasyPost
+app.use(easypostWebhook);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
+app.use(express.json({ type: ['application/json', 'application/*+json'] }));
 app.use(offersCatalogRouter);
 app.use(mailgunRouter);
 
