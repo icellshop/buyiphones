@@ -9,55 +9,50 @@ const PORT = process.env.PORT || 3000;
 
 const api = new EasyPost(process.env.EASYPOST_API_KEY);
 const sendLabelEmail = require('./mailgun-send');
-const mailgunRouter = require('./mailgun-send').router; // <- Importa el router que contiene /api/send-contact
+const mailgunRouter = require('./mailgun-send').router;
 const offersCatalogRouter = require('./offerscatalog');
+const pool = require('./db'); // <-- Tu conexión a Postgres
 
-
-app.use(offersCatalogRouter);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Servir archivos estáticos de la carpeta 'public'
-app.use(express.static(path.join(__dirname, 'public')));
-
-// Usa el router de mailgun para el endpoint de contacto
+app.use(offersCatalogRouter);
 app.use(mailgunRouter);
 
+// Servir archivos estáticos de la carpeta 'public'
+app.use(express.static(path.join(__dirname, 'public')));
+app.use('/tmp', express.static(path.join(__dirname, 'public', 'tmp')));
+
+// Rutas de páginas
 app.get('/env.js', (req, res) => {
   res.type('application/javascript');
   res.send(`window.APP_CONFIG = { OFFERS_ENDPOINT: "${process.env.OFFERS_ENDPOINT}" };`);
 });
+app.get('/sell-device', (req, res) => res.sendFile(path.join(__dirname, 'public', 'selldevice.html')));
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+app.get('/contact', (req, res) => res.sendFile(path.join(__dirname, 'public', 'contact.html')));
+app.get('/we-are', (req, res) => res.sendFile(path.join(__dirname, 'public', 'we-are.html')));
+app.get('/wholesale', (req, res) => res.sendFile(path.join(__dirname, 'public', 'wholesale.html')));
+app.get('/index.html', (req, res) => res.redirect('/'));
 
-
-// Ruta para /sell-device que sirve selldevice.html
-app.get('/sell-device', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'selldevice.html'));
+// Endpoint para registrar la oferta en la base de datos (NECESARIO PARA TU FLUJO)
+app.post('/api/register-offer', async (req, res) => {
+  try {
+    const { offer_id, email, ip_address } = req.body;
+    if (!offer_id || !email) {
+      return res.status(400).json({ success: false, message: 'Faltan datos' });
+    }
+    const result = await pool.query(
+      `INSERT INTO offers_history (offer_id, email, ip_address, created_at)
+       VALUES ($1, $2, $3, now()) RETURNING id`,
+      [offer_id, email, ip_address || null]
+    );
+    res.json({ success: true, data: { id: result.rows[0].id } });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Error al registrar la oferta', error: err.message });
+  }
 });
-
-// Ruta para Home
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-// Ruta para Contact
-app.get('/contact', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'contact.html'));
-});
-// Ruta para who are we
-app.get('/we-are', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'we-are.html'));
-});
-
-// Ruta para wholesale
-app.get('/wholesale', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'wholesale.html'));
-});
-
-// (opcional) Redirección para /index.html
-app.get('/index.html', (req, res) => {
-  res.redirect('/');
-});
-
-app.use('/tmp', express.static(path.join(__dirname, 'public', 'tmp')));
 
 // Endpoint para validar dirección con Google Geocoding API
 app.post('/validar-direccion', async (req, res) => {
@@ -96,7 +91,7 @@ app.post('/validar-direccion', async (req, res) => {
   }
 });
 
-// Endpoint para generar etiqueta con EasyPost (COMPRA la etiqueta y retorna el PDF)
+// Endpoint para generar etiqueta con EasyPost Y registrar la orden en la base de datos
 app.post('/generar-etiqueta', async (req, res) => {
   try {
     const toAddress = req.body.to_address;
@@ -134,7 +129,6 @@ app.post('/generar-etiqueta', async (req, res) => {
     // --- ENVÍA EL CORREO AUTOMATICAMENTE ---
     let emailResult = null;
     try {
-      // El email DEBE estar en toAddress.email, si no, busca en req.body.contacto como fallback
       const destinatario = toAddress.email || req.body.contacto;
       if (!destinatario) throw new Error("No se encontró email de destinatario para enviar la etiqueta.");
 
@@ -145,15 +139,30 @@ app.post('/generar-etiqueta', async (req, res) => {
         emailResult = await sendLabelEmail(destinatario, asunto, texto, shipment.postage_label.label_url);
       }
     } catch (mailError) {
-      // Si falla el envío de email, sigue funcionando pero avisa en el response
       emailResult = { error: true, details: mailError.message };
+    }
+
+    // REGISTRA LA ORDEN EN LA BASE DE DATOS SI offer_history_id VIENE
+    const offerHistoryId = req.body.offer_history_id || null;
+    let orderResult = null;
+    if (offerHistoryId) {
+      try {
+        orderResult = await pool.query(
+          `INSERT INTO orders (offer_history_id, status, tracking_code, label_url, shipped_at, created_at, updated_at) 
+           VALUES ($1, $2, $3, $4, $5, now(), now()) RETURNING *`,
+          [offerHistoryId, 'awaiting_shipment', shipment.tracking_code, shipment.postage_label.label_url, null]
+        );
+      } catch (err) {
+        console.error('Error al registrar la orden en DB:', err.message);
+      }
     }
 
     res.json({
       status: 'success',
       label_url: shipment.postage_label ? shipment.postage_label.label_url : null,
       tracking_code: shipment.tracking_code || null,
-      shipment, // Incluye todo el objeto shipment por si necesitas más info en el frontend
+      shipment,
+      order: orderResult && orderResult.rows ? orderResult.rows[0] : null,
       email_result: emailResult
     });
   } catch (error) {
