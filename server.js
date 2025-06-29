@@ -37,6 +37,7 @@ app.get('/index.html', (req, res) => res.redirect('/'));
 
 // Endpoint para registrar la oferta en la base de datos (NECESARIO PARA TU FLUJO)
 app.post('/api/register-offer', async (req, res) => {
+  console.log("Recibido en /api/register-offer:", req.body);
   try {
     const { offer_id, email, ip_address } = req.body;
     if (!offer_id || !email) {

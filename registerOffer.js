@@ -1,18 +1,22 @@
 const express = require('express');
+const pool = require('./db'); // ajusta el path según tu estructura
 const router = express.Router();
-const pool = require('./db');
 
-// Usa un prefijo de ruta para mantener la API limpia (opcional pero recomendado)
 router.post('/api/register-offer', async (req, res) => {
-  const { offer_id, email, ip_address } = req.body;
   try {
+    const { offer_id, email, ip_address } = req.body;
+    if (!offer_id || !email) {
+      return res.status(400).json({ success: false, message: 'Faltan datos' });
+    }
     const result = await pool.query(
-      `INSERT INTO offers_history (offer_id, email, ip_address) VALUES ($1, $2, $3) RETURNING *`,
-      [offer_id, email, ip_address]
+      `INSERT INTO offers_history (offer_id, email, ip_address, created_at)
+       VALUES ($1, $2, $3, now()) RETURNING id`,
+      [offer_id, email, ip_address || null]
     );
-    res.status(200).json({ success: true, data: result.rows[0] });
+    res.json({ success: true, data: { id: result.rows[0].id } });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Error al registrar la oferta', error: err.message });
   }
 });
 

@@ -197,7 +197,7 @@
     </span>
     <div class="nav-links">
       <a href="/">Home</a>
-      <a href="/sell-device"class="active">Sell device</a>
+      <a href="/sell-device" class="active">Sell device</a>
       <a href="/contact">Contact us</a>
       <a href="wholesale">Wholesale</a>
       <a href="we-are">Who are we?</a>
@@ -214,6 +214,7 @@
     </div>
   </main>
   <script>
+    // ========== JS INICIO ==========
     const ENDPOINT = "/api/offers-catalog";
     if (!window.formState) window.formState = {
       nombre: "",
@@ -283,12 +284,16 @@
     let offers = [];
     let selection = { device_model: null, carrier: null, storage: null, device_condition: null };
     let openStep = 0;
+    let showEmailStep = false;
     let showForm = false;
     let formSubmitted = false;
     let formError = '';
     let formValidating = false;
     let lastResumenData = null;
     let offerHistoryId = null;
+    let contactEmail = '';
+    let emailError = '';
+
     function unique(arr, key) {
       return [...new Set(arr.map(x => x[key]))];
     }
@@ -300,6 +305,412 @@
       }
       return unique(filtered, STEPS[stepIdx].key);
     }
+
+    function validateEmail(email) {
+      return /^[\w\.\-]+@([\w\-]+\.)+[a-zA-Z]{2,}$/.test(email);
+    }
+
+    function renderSteps() {
+      const stepsDiv = document.getElementById('steps');
+      stepsDiv.innerHTML = '';
+      if (!offers || offers.length === 0) {
+        stepsDiv.innerHTML = `<div class="loading">Cargando datos...</div>`;
+        return;
+      }
+      STEPS.forEach((step, idx) => {
+        if (idx > 0 && !selection[STEPS[idx - 1].key]) return;
+        const section = document.createElement('div');
+        section.className = 'step' + (openStep === idx ? ' active' : '');
+        const header = document.createElement('button');
+        header.type = 'button';
+        header.className = 'step-header' + (openStep === idx ? ' active' : '');
+        header.tabIndex = 0;
+        header.innerHTML = step.label + (selection[step.key] ? `: <span style="color:var(--accent);font-weight:700;">${selection[step.key]}</span>` : '');
+        header.onclick = () => {
+          openStep = idx;
+          showEmailStep = false;
+          showForm = false;
+          renderSteps();
+        };
+        section.appendChild(header);
+        const content = document.createElement('div');
+        content.className = 'step-content';
+        if (openStep === idx) {
+          const options = getFilteredOptions(idx);
+          const cardList = document.createElement('div');
+          cardList.className = 'card-list';
+          options.forEach(opt => {
+            const card = document.createElement('button');
+            card.type = 'button';
+            card.className = 'card' + (selection[step.key] === opt ? ' selected' : '');
+            if (step.withImage && step.images && step.images[opt]) {
+              const img = document.createElement('img');
+              img.src = step.images[opt];
+              img.alt = opt;
+              img.className = 'card-img';
+              card.appendChild(img);
+            }
+            const label = document.createElement('span');
+            label.innerText = opt;
+            card.appendChild(label);
+            card.onclick = () => {
+              selection[step.key] = opt;
+              STEPS.slice(idx + 1).forEach(s => selection[s.key] = null);
+              showEmailStep = false;
+              showForm = false;
+              setTimeout(() => {
+                openStep = idx + 1;
+                renderSteps();
+              }, 170);
+            };
+            cardList.appendChild(card);
+          });
+          content.appendChild(cardList);
+        }
+        section.appendChild(content);
+        stepsDiv.appendChild(section);
+      });
+
+      // Si el usuario ya eligió modelo, carrier, storage y condition, pedimos email ANTES del botón Secure Offer
+      if (STEPS.every(s => selection[s.key])) {
+        const resultSection = document.createElement('div');
+        resultSection.className = 'step active';
+        const match = offers.find(
+          o => o.device_model === selection.device_model && o.carrier === selection.carrier &&
+            o.storage === selection.storage && o.device_condition === selection.device_condition
+        );
+        if (match) {
+          resultSection.innerHTML = `<div class="result-offer">Your offer is:<br><strong>$${match.offer_amount} USD</strong></div>`;
+          // Paso nuevo: pedir email ANTES del botón Secure Offer
+          if (!showEmailStep) {
+            const emailDiv = document.createElement('div');
+            emailDiv.className = 'form-group';
+            emailDiv.innerHTML = `
+              <label for="contactEmail">Contact email to receive offer and label</label>
+              <input required id="contactEmail" name="contactEmail" type="email" autocomplete="email" style="width:100%;" />
+              <div id="emailError" class="form-error" style="display:none;"></div>
+              <button class="submit-btn" id="continueEmailBtn" style="margin-top:0.7rem;">Continue</button>
+            `;
+            setTimeout(() => {
+              const emailInput = document.getElementById('contactEmail');
+              const emailErrorDiv = document.getElementById('emailError');
+              const continueBtn = document.getElementById('continueEmailBtn');
+              emailInput.value = contactEmail;
+              continueBtn.onclick = async (e) => {
+                e.preventDefault();
+                contactEmail = emailInput.value.trim();
+                if (!validateEmail(contactEmail)) {
+                  emailErrorDiv.textContent = "Enter a valid email address.";
+                  emailErrorDiv.style.display = "block";
+                  return;
+                }
+                emailErrorDiv.style.display = "none";
+                showEmailStep = true;
+                renderSteps();
+              };
+            }, 0);
+            resultSection.appendChild(emailDiv);
+          } else if (!offerHistoryId) {
+            const secureBtn = document.createElement('button');
+            secureBtn.className = 'accept-btn';
+            secureBtn.textContent = 'Secure offer now';
+            secureBtn.onclick = async () => {
+              try {
+                const regResp = await fetch('/api/register-offer', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    offer_id: match.id,
+                    email: contactEmail,
+                    ip_address: ""
+                  })
+                });
+                const regData = await regResp.json();
+                if (regData && regData.data && regData.data.id) {
+                  offerHistoryId = regData.data.id;
+                  renderSteps();
+                } else {
+                  alert("Error securing offer. Try again.");
+                }
+              } catch (err) {
+                alert("Error securing offer. Try again.");
+              }
+            };
+            resultSection.appendChild(secureBtn);
+          } else {
+            // Ya asegurada la oferta, mostrar el formulario para dirección, pago, etc.
+            renderSellForm(resultSection, match);
+          }
+        } else {
+          resultSection.innerHTML = `<div class="no-offer">No hay oferta para esta combinación.</div>`;
+        }
+        if (!formSubmitted) {
+          const restartBtn = document.createElement('button');
+          restartBtn.className = 'restart-btn';
+          restartBtn.textContent = 'Start again';
+          restartBtn.onclick = () => {
+            selection = { device_model: null, carrier: null, storage: null, device_condition: null };
+            openStep = 0;
+            showEmailStep = false;
+            showForm = false;
+            window.paymentButtonState = { selected: null, confirmValue: "", error: "" };
+            window.formState = {
+              nombre: "",
+              contacto: "",
+              autocomplete: "",
+              street1: "",
+              street2: "",
+              city: "",
+              state: "",
+              zip: ""
+            };
+            offerHistoryId = null;
+            contactEmail = '';
+            renderSteps();
+          };
+          resultSection.appendChild(restartBtn);
+        }
+        stepsDiv.appendChild(resultSection);
+      }
+    }
+
+    function renderSellForm(parentDiv, matchOffer) {
+      const formSection = document.createElement('div');
+      formSection.className = 'form-section';
+      if (formSubmitted) {
+        renderSummaryPage(lastResumenData);
+        return;
+      } else {
+        formSection.innerHTML = `
+          <form id="sellForm" autocomplete="off">
+            <div class="form-group">
+              <label for="nombre">Full Name</label>
+              <input required id="nombre" name="nombre" type="text" autocomplete="name" />
+            </div>
+            <div class="form-group">
+              <label for="autocomplete">Send from Address</label>
+              <input id="autocomplete" type="text" placeholder="Start typing your address..." autocomplete="off" required>
+              <input id="street1" name="street1" type="hidden" required>
+              <input id="street2" name="street2" type="hidden">
+              <input id="city" name="city" type="hidden" required>
+              <input id="state" name="state" type="hidden" required>
+              <input id="zip" name="zip" type="hidden" required>
+            </div>
+            <div id="paymentButtonsContainer"></div>
+            <div class="form-note">
+              <em>Only US addresses allowed.<br>Your information is confidential and will be used for shipping and payment purposes only.</em>
+            </div>
+            <button class="submit-btn" type="submit" ${formValidating ? 'disabled' : ''}>${formValidating ? 'Validating address...' : 'Send information'}</button>
+            ${formError ? `<div class="form-error">${formError}</div>` : ''}
+            <div id="etiquetaResult" style="margin-top:1.2rem"></div>
+          </form>
+        `;
+        setTimeout(() => {
+          document.getElementById('nombre').value = window.formState.nombre || "";
+          document.getElementById('autocomplete').value = window.formState.autocomplete || "";
+          document.getElementById('street1').value = window.formState.street1 || "";
+          document.getElementById('street2').value = window.formState.street2 || "";
+          document.getElementById('city').value = window.formState.city || "";
+          document.getElementById('state').value = window.formState.state || "";
+          document.getElementById('zip').value = window.formState.zip || "";
+          document.getElementById('nombre').oninput = e => window.formState.nombre = e.target.value;
+          document.getElementById('autocomplete').oninput = e => window.formState.autocomplete = e.target.value;
+          ["street1", "street2", "city", "state", "zip"].forEach(id => {
+            document.getElementById(id).oninput = e => { window.formState[id] = e.target.value; };
+          });
+          let autocompleteObj = new google.maps.places.Autocomplete(
+            document.getElementById('autocomplete'),
+            { types: ['address'], componentRestrictions: { country: "us" } }
+          );
+          autocompleteObj.setFields(['address_components', 'formatted_address']);
+          autocompleteObj.addListener('place_changed', function () {
+            const place = autocompleteObj.getPlace();
+            let street1 = '', street2 = '', city = '', state = '', zip = '';
+            for (const component of place.address_components) {
+              const types = component.types;
+              if (types.includes('street_number')) street1 = component.long_name + ' ' + street1;
+              if (types.includes('route')) street1 += component.long_name;
+              if (types.includes('subpremise')) street2 = component.long_name;
+              if (types.includes('locality')) city = component.long_name;
+              if (types.includes('administrative_area_level_1')) state = component.short_name;
+              if (types.includes('postal_code')) zip = component.long_name;
+            }
+            document.getElementById('street1').value = street1.trim();
+            document.getElementById('street2').value = street2;
+            document.getElementById('city').value = city;
+            document.getElementById('state').value = state;
+            document.getElementById('zip').value = zip;
+            window.formState.street1 = street1.trim();
+            window.formState.street2 = street2;
+            window.formState.city = city;
+            window.formState.state = state;
+            window.formState.zip = zip;
+            window.formState.autocomplete = document.getElementById('autocomplete').value;
+          });
+          let paymentMethod = window.paymentButtonState.selected;
+          const paymentButtonsContainer = document.getElementById('paymentButtonsContainer');
+          paymentButtonsContainer.innerHTML = '';
+          paymentButtonsContainer.appendChild(renderPaymentButtons(
+            window.paymentButtonState.selected,
+            window.paymentButtonState.confirmValue,
+            (newSelected) => {
+              window.paymentButtonState.selected = newSelected;
+              window.paymentButtonState.confirmValue = "";
+              window.paymentButtonState.error = "";
+              window.formState.nombre = document.getElementById('nombre').value;
+              window.formState.autocomplete = document.getElementById('autocomplete').value;
+              window.formState.street1 = document.getElementById('street1').value;
+              window.formState.street2 = document.getElementById('street2').value;
+              window.formState.city = document.getElementById('city').value;
+              window.formState.state = document.getElementById('state').value;
+              window.formState.zip = document.getElementById('zip').value;
+              renderSteps();
+            },
+            (newConfirmValue) => {
+              window.paymentButtonState.confirmValue = newConfirmValue;
+            },
+            window.paymentButtonState.error
+          ));
+          document.getElementById('sellForm')?.addEventListener('submit', async function (e) {
+            e.preventDefault();
+            let paymentConfirmInput = document.getElementById('paymentConfirmInput');
+            let paymentErrorDiv = paymentConfirmInput ? paymentConfirmInput.parentNode.querySelector('.form-error') : null;
+            if (paymentConfirmInput) paymentConfirmInput.dispatchEvent(new Event('input'));
+            if (paymentErrorDiv && paymentErrorDiv.textContent) return;
+            const nombre = document.getElementById('nombre').value;
+            const street1 = document.getElementById('street1').value;
+            const street2 = document.getElementById('street2').value;
+            const city = document.getElementById('city').value;
+            const state = document.getElementById('state').value;
+            const zip = document.getElementById('zip').value;
+            const payment = window.paymentButtonState.selected;
+            const paymentValue = window.paymentButtonState.confirmValue;
+            if (!payment) {
+              window.paymentButtonState.error = "Selecciona el método de pago.";
+              renderSteps();
+              return;
+            }
+            if (!paymentValue || paymentValue.length < 3) {
+              window.paymentButtonState.error = "Confirma correctamente la cuenta/correo/teléfono asociado.";
+              renderSteps();
+              return;
+            }
+            if (!street1 || !city || !state || !zip) {
+              formError = 'Selecciona una dirección válida de la lista de Google.';
+              formValidating = false;
+              renderSteps(); return;
+            }
+            formValidating = true; formError = '';
+            renderSteps();
+            try {
+              const response = await fetch('/validar-direccion', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ street1, street2, city, state, zip })
+              });
+              const data = await response.json();
+              if (data.status === 'valid') {
+                document.getElementById('etiquetaResult').innerHTML = "Preparing label...";
+                try {
+                  const etiquetaResp = await fetch('/generar-etiqueta', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      to_address: {
+                        name: nombre,
+                        street1,
+                        street2,
+                        city,
+                        state,
+                        zip,
+                        country: "US",
+                        email: contactEmail
+                      },
+                      from_address: {
+                        name: "ICellShop",
+                        street1: "2506 E COWAN CIR",
+                        street2: "",
+                        city: "Phoenix",
+                        state: "AZ",
+                        zip: "85050",
+                        country: "US",
+                        phone: "555-123-4567",
+                        email: "icellshop@correo.com"
+                      },
+                      parcel: {
+                        length: 20,
+                        width: 15,
+                        height: 10,
+                        weight: 500
+                      },
+                      contacto: contactEmail,
+                      payment_method: payment.value,
+                      payment_value: paymentValue,
+                      offer_history_id: offerHistoryId
+                    })
+                  });
+                  const etiquetaData = await etiquetaResp.json();
+                  if (etiquetaData.status === 'success') {
+                    window.formState = {
+                      nombre: "",
+                      contacto: "",
+                      autocomplete: "",
+                      street1: "",
+                      street2: "",
+                      city: "",
+                      state: "",
+                      zip: ""
+                    };
+                    lastResumenData = {
+                      label_url: etiquetaData.label_url,
+                      tracking_code: etiquetaData.tracking_code,
+                      envio: {
+                        model: selection.device_model,
+                        carrier: selection.carrier,
+                        storage: selection.storage,
+                        condition: selection.device_condition,
+                        nombre,
+                        direccion: { street1, street2, city, state, zip },
+                        contacto: contactEmail,
+                        metodo: payment.value,
+                        metodo_id: paymentValue
+                      }
+                    };
+                    formSubmitted = true;
+                    formValidating = false;
+                    renderSteps();
+                  } else {
+                    document.getElementById('etiquetaResult').innerHTML = "Error generando etiqueta: " + (etiquetaData.message || "Error desconocido");
+                    formValidating = false;
+                  }
+                } catch (err) {
+                  document.getElementById('etiquetaResult').innerHTML = "Error generando etiqueta: " + err.message;
+                  formValidating = false;
+                }
+              } else if (data.status === 'suggestion') {
+                formError = '¿Quizá quisiste decir: ' +
+                  data.suggestion.street1 + ', ' +
+                  (data.suggestion.street2 ? (data.suggestion.street2 + ', ') : '') +
+                  data.suggestion.city + ', ' + data.suggestion.state + ', ' + data.suggestion.zip +
+                  '? Corrige la dirección, por favor.';
+                formValidating = false;
+                renderSteps();
+              } else {
+                formError = data.message || 'Dirección no válida. Revisa tus datos.';
+                formValidating = false;
+                renderSteps();
+              }
+            } catch (err) {
+              formError = 'Error validando la dirección. Intenta de nuevo.';
+              formValidating = false;
+              renderSteps();
+            }
+          });
+        }, 0);
+      }
+      parentDiv.appendChild(formSection);
+    }
+
     function renderPaymentButtons(paymentSelected, confirmValue, onSelect, onConfirmChange, errorMsg) {
       const wrapper = document.createElement('div');
       const btnList = document.createElement('div');
@@ -340,424 +751,7 @@
       }
       return wrapper;
     }
-    function renderSteps() {
-      const stepsDiv = document.getElementById('steps');
-      stepsDiv.innerHTML = '';
-      if (!offers || offers.length === 0) {
-        stepsDiv.innerHTML = `<div class="loading">Cargando datos...</div>`;
-        return;
-      }
-      STEPS.forEach((step, idx) => {
-        if (idx > 0 && !selection[STEPS[idx - 1].key]) return;
-        const section = document.createElement('div');
-        section.className = 'step' + (openStep === idx ? ' active' : '');
-        const header = document.createElement('button');
-        header.type = 'button';
-        header.className = 'step-header' + (openStep === idx ? ' active' : '');
-        header.tabIndex = 0;
-        header.innerHTML = step.label + (selection[step.key] ? `: <span style="color:var(--accent);font-weight:700;">${selection[step.key]}</span>` : '');
-        header.onclick = () => {
-          openStep = idx;
-          showForm = false;
-          renderSteps();
-        };
-        section.appendChild(header);
-        const content = document.createElement('div');
-        content.className = 'step-content';
-        if (openStep === idx) {
-          const options = getFilteredOptions(idx);
-          const cardList = document.createElement('div');
-          cardList.className = 'card-list';
-          options.forEach(opt => {
-            const card = document.createElement('button');
-            card.type = 'button';
-            card.className = 'card' + (selection[step.key] === opt ? ' selected' : '');
-            if (step.withImage && step.images && step.images[opt]) {
-              const img = document.createElement('img');
-              img.src = step.images[opt];
-              img.alt = opt;
-              img.className = 'card-img';
-              card.appendChild(img);
-            }
-            const label = document.createElement('span');
-            label.innerText = opt;
-            card.appendChild(label);
-            card.onclick = () => {
-              selection[step.key] = opt;
-              STEPS.slice(idx + 1).forEach(s => selection[s.key] = null);
-              showForm = false;
-              setTimeout(() => {
-                openStep = idx + 1;
-                renderSteps();
-              }, 170);
-            };
-            cardList.appendChild(card);
-          });
-          content.appendChild(cardList);
-        }
-        section.appendChild(content);
-        stepsDiv.appendChild(section);
-      });
-      if (STEPS.every(s => selection[s.key])) {
-        const resultSection = document.createElement('div');
-        resultSection.className = 'step active';
-        const match = offers.find(
-          o => o.device_model === selection.device_model && o.carrier === selection.carrier &&
-            o.storage === selection.storage && o.device_condition === selection.device_condition
-        );
-        if (match) {
-          resultSection.innerHTML = `<div class="result-offer">Your offer is:<br><strong>$${match.offer_amount} USD</strong></div>`;
-          if (!showForm) {
-            const acceptBtn = document.createElement('button');
-            acceptBtn.className = 'accept-btn';
-            acceptBtn.textContent = 'Secure offer now';
-            acceptBtn.onclick = async () => {
-              try {
-                const regResp = await fetch('/api/register-offer', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    offer_id: match.id,
-                    email: window.formState.contacto || "",
-                    ip_address: ""
-                  })
-                });
-                const regData = await regResp.json();
-                if (regData && regData.data && regData.data.id) {
-                  offerHistoryId = regData.data.id;
-                }
-              } catch (err) {
-                offerHistoryId = null;
-              }
-              showForm = true;
-              formSubmitted = false;
-              formError = '';
-              renderSteps();
-            };
-            resultSection.appendChild(acceptBtn);
-          } else {
-            const formSection = document.createElement('div');
-            formSection.className = 'form-section';
-            if (formSubmitted) {
-              renderSummaryPage(lastResumenData);
-              return;
-            } else {
-              formSection.innerHTML = `
-                <form id="sellForm" autocomplete="off">
-                  <div class="form-group">
-                    <label for="nombre">Full Name</label>
-                    <input required id="nombre" name="nombre" type="text" autocomplete="name" />
-                  </div>
-                  <div class="form-group">
-                    <label for="autocomplete">Send from Address</label>
-                    <input id="autocomplete" type="text" placeholder="Start typing your address..." autocomplete="off" required>
-                    <input id="street1" name="street1" type="hidden" required>
-                    <input id="street2" name="street2" type="hidden">
-                    <input id="city" name="city" type="hidden" required>
-                    <input id="state" name="state" type="hidden" required>
-                    <input id="zip" name="zip" type="hidden" required>
-                  </div>
-                  <div id="paymentButtonsContainer"></div>
-                  <div class="form-group">
-                    <label for="contacto">CONTACT email to receive shipping label</label>
-                    <input required id="contacto" name="contacto" type="text" autocomplete="email"/>
-                  </div>
-                  <div class="form-note">
-                    <em>Only US addresses allowed.<br>Your information is confidential and will be used for shipping and payment purposes only.</em>
-                  </div>
-                  <button class="submit-btn" type="submit" ${formValidating ? 'disabled' : ''}>${formValidating ? 'Validating address...' : 'Send information'}</button>
-                  ${formError ? `<div class="form-error">${formError}</div>` : ''}
-                  <div id="etiquetaResult" style="margin-top:1.2rem"></div>
-                </form>
-              `;
-              setTimeout(() => {
-                document.getElementById('nombre').value = window.formState.nombre || "";
-                document.getElementById('contacto').value = window.formState.contacto || "";
-                document.getElementById('autocomplete').value = window.formState.autocomplete || "";
-                document.getElementById('street1').value = window.formState.street1 || "";
-                document.getElementById('street2').value = window.formState.street2 || "";
-                document.getElementById('city').value = window.formState.city || "";
-                document.getElementById('state').value = window.formState.state || "";
-                document.getElementById('zip').value = window.formState.zip || "";
-                document.getElementById('nombre').oninput = e => window.formState.nombre = e.target.value;
-                document.getElementById('contacto').oninput = e => window.formState.contacto = e.target.value;
-                document.getElementById('autocomplete').oninput = e => window.formState.autocomplete = e.target.value;
-                ["street1", "street2", "city", "state", "zip"].forEach(id => {
-                  document.getElementById(id).oninput = e => { window.formState[id] = e.target.value; };
-                });
-                let autocompleteObj = new google.maps.places.Autocomplete(
-                  document.getElementById('autocomplete'),
-                  { types: ['address'], componentRestrictions: { country: "us" } }
-                );
-                autocompleteObj.setFields(['address_components', 'formatted_address']);
-                autocompleteObj.addListener('place_changed', function () {
-                  const place = autocompleteObj.getPlace();
-                  let street1 = '', street2 = '', city = '', state = '', zip = '';
-                  for (const component of place.address_components) {
-                    const types = component.types;
-                    if (types.includes('street_number')) street1 = component.long_name + ' ' + street1;
-                    if (types.includes('route')) street1 += component.long_name;
-                    if (types.includes('subpremise')) street2 = component.long_name;
-                    if (types.includes('locality')) city = component.long_name;
-                    if (types.includes('administrative_area_level_1')) state = component.short_name;
-                    if (types.includes('postal_code')) zip = component.long_name;
-                  }
-                  document.getElementById('street1').value = street1.trim();
-                  document.getElementById('street2').value = street2;
-                  document.getElementById('city').value = city;
-                  document.getElementById('state').value = state;
-                  document.getElementById('zip').value = zip;
-                  window.formState.street1 = street1.trim();
-                  window.formState.street2 = street2;
-                  window.formState.city = city;
-                  window.formState.state = state;
-                  window.formState.zip = zip;
-                  window.formState.autocomplete = document.getElementById('autocomplete').value;
-                });
-                let contactInput = document.getElementById('contacto');
-                let paymentMethod = window.paymentButtonState.selected;
-                let contactErrorDiv = null;
-                if (!document.getElementById('contacto-error')) {
-                  contactErrorDiv = document.createElement('div');
-                  contactErrorDiv.className = 'form-error';
-                  contactErrorDiv.id = 'contacto-error';
-                  contactInput.parentNode.appendChild(contactErrorDiv);
-                } else {
-                  contactErrorDiv = document.getElementById('contacto-error');
-                }
-                function validateContactoField() {
-                  let value = contactInput.value.trim();
-                  let errorMsg = '';
-                  if (paymentMethod) {
-                    if (paymentMethod.value === 'PayPal') {
-                      if (!/^[\w\.\-]+@([\w\-]+\.)+[a-zA-Z]{2,}$/.test(value)) errorMsg = 'Introduce un correo electrónico válido para PayPal.';
-                    } else if (paymentMethod.value === 'Zelle' || paymentMethod.value === 'CashApp') {
-                      if (!/^[\w\.\-]+@([\w\-]+\.)+[a-zA-Z]{2,}$/.test(value) && !/^(\+?1)?\d{10}$/.test(value.replace(/[^\d]/g, ''))) errorMsg = 'Introduce un email o teléfono válido de USA.';
-                    } else if (paymentMethod.value === 'Wire Transfer') {
-                      if (value.length < 5) errorMsg = 'Introduce los datos bancarios completos.';
-                    }
-                  }
-                  contactErrorDiv.textContent = errorMsg;
-                  return !errorMsg;
-                }
-                contactInput.oninput = function () {
-                  window.formState.contacto = this.value;
-                  validateContactoField();
-                };
-                if (paymentMethod) validateContactoField();
-                let paymentConfirmInput = document.getElementById('paymentConfirmInput');
-                let paymentErrorDiv = paymentConfirmInput ? paymentConfirmInput.parentNode.querySelector('.form-error') : null;
-                if (paymentConfirmInput) {
-                  paymentConfirmInput.oninput = function () {
-                    window.paymentButtonState.confirmValue = this.value;
-                    let value = this.value.trim();
-                    let error = '';
-                    if (paymentMethod) {
-                      if (paymentMethod.value === 'PayPal') {
-                        if (!/^[\w\.\-]+@([\w\-]+\.)+[a-zA-Z]{2,}$/.test(value)) error = 'Introduce un correo electrónico válido para PayPal.';
-                      } else if (paymentMethod.value === 'Zelle' || paymentMethod.value === 'CashApp') {
-                        if (!/^[\w\.\-]+@([\w\-]+\.)+[a-zA-Z]{2,}$/.test(value) && !/^(\+?1)?\d{10}$/.test(value.replace(/[^\d]/g, ''))) error = 'Introduce un email o teléfono válido de USA.';
-                      } else if (paymentMethod.value === 'Wire Transfer') {
-                        if (value.length < 5) error = 'Introduce los datos bancarios completos.';
-                      }
-                    }
-                    if (paymentErrorDiv) paymentErrorDiv.textContent = error;
-                  };
-                  paymentConfirmInput.dispatchEvent(new Event('input'));
-                }
-                const paymentButtonsContainer = document.getElementById('paymentButtonsContainer');
-                paymentButtonsContainer.innerHTML = '';
-                paymentButtonsContainer.appendChild(renderPaymentButtons(
-                  window.paymentButtonState.selected,
-                  window.paymentButtonState.confirmValue,
-                  (newSelected) => {
-                    window.paymentButtonState.selected = newSelected;
-                    window.paymentButtonState.confirmValue = "";
-                    window.paymentButtonState.error = "";
-                    window.formState.nombre = document.getElementById('nombre').value;
-                    window.formState.contacto = document.getElementById('contacto').value;
-                    window.formState.autocomplete = document.getElementById('autocomplete').value;
-                    window.formState.street1 = document.getElementById('street1').value;
-                    window.formState.street2 = document.getElementById('street2').value;
-                    window.formState.city = document.getElementById('city').value;
-                    window.formState.state = document.getElementById('state').value;
-                    window.formState.zip = document.getElementById('zip').value;
-                    renderSteps();
-                  },
-                  (newConfirmValue) => {
-                    window.paymentButtonState.confirmValue = newConfirmValue;
-                  },
-                  window.paymentButtonState.error
-                ));
-                document.getElementById('sellForm')?.addEventListener('submit', async function (e) {
-                  e.preventDefault();
-                  if (!validateContactoField()) return;
-                  if (paymentConfirmInput) paymentConfirmInput.dispatchEvent(new Event('input'));
-                  if (paymentErrorDiv && paymentErrorDiv.textContent) return;
-                  const nombre = document.getElementById('nombre').value;
-                  const contacto = document.getElementById('contacto').value;
-                  const street1 = document.getElementById('street1').value;
-                  const street2 = document.getElementById('street2').value;
-                  const city = document.getElementById('city').value;
-                  const state = document.getElementById('state').value;
-                  const zip = document.getElementById('zip').value;
-                  const payment = window.paymentButtonState.selected;
-                  const paymentValue = window.paymentButtonState.confirmValue;
-                  if (!payment) {
-                    window.paymentButtonState.error = "Selecciona el método de pago.";
-                    renderSteps();
-                    return;
-                  }
-                  if (!paymentValue || paymentValue.length < 3) {
-                    window.paymentButtonState.error = "Confirma correctamente la cuenta/correo/teléfono asociado.";
-                    renderSteps();
-                    return;
-                  }
-                  if (!street1 || !city || !state || !zip) {
-                    formError = 'Selecciona una dirección válida de la lista de Google.';
-                    formValidating = false;
-                    renderSteps(); return;
-                  }
-                  formValidating = true; formError = '';
-                  renderSteps();
-                  try {
-                    const response = await fetch('/validar-direccion', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ street1, street2, city, state, zip })
-                    });
-                    const data = await response.json();
-                    if (data.status === 'valid') {
-                      document.getElementById('etiquetaResult').innerHTML = "Preparing label...";
-                      try {
-                        const etiquetaResp = await fetch('/generar-etiqueta', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({
-                            to_address: {
-                              name: nombre,
-                              street1,
-                              street2,
-                              city,
-                              state,
-                              zip,
-                              country: "US",
-                              phone: contacto
-                            },
-                            from_address: {
-                              name: "ICellShop",
-                              street1: "2506 E COWAN CIR",
-                              street2: "",
-                              city: "Phoenix",
-                              state: "AZ",
-                              zip: "85050",
-                              country: "US",
-                              phone: "555-123-4567",
-                              email: "icellshop@correo.com"
-                            },
-                            parcel: {
-                              length: 20,
-                              width: 15,
-                              height: 10,
-                              weight: 500
-                            },
-                            contacto,
-                            payment_method: payment.value,
-                            payment_value: paymentValue,
-                            offer_history_id: offerHistoryId
-                          })
-                        });
-                        const etiquetaData = await etiquetaResp.json();
-                        if (etiquetaData.status === 'success') {
-                          window.formState = {
-                            nombre: "",
-                            contacto: "",
-                            autocomplete: "",
-                            street1: "",
-                            street2: "",
-                            city: "",
-                            state: "",
-                            zip: ""
-                          };
-                          lastResumenData = {
-                            label_url: etiquetaData.label_url,
-                            tracking_code: etiquetaData.tracking_code,
-                            envio: {
-                              model: selection.device_model,
-                              carrier: selection.carrier,
-                              storage: selection.storage,
-                              condition: selection.device_condition,
-                              nombre,
-                              direccion: { street1, street2, city, state, zip },
-                              contacto,
-                              metodo: payment.value,
-                              metodo_id: paymentValue
-                            }
-                          };
-                          formSubmitted = true;
-                          formValidating = false;
-                          renderSteps();
-                        } else {
-                          document.getElementById('etiquetaResult').innerHTML = "Error generando etiqueta: " + (etiquetaData.message || "Error desconocido");
-                          formValidating = false;
-                        }
-                      } catch (err) {
-                        document.getElementById('etiquetaResult').innerHTML = "Error generando etiqueta: " + err.message;
-                        formValidating = false;
-                      }
-                    } else if (data.status === 'suggestion') {
-                      formError = '¿Quizá quisiste decir: ' +
-                        data.suggestion.street1 + ', ' +
-                        (data.suggestion.street2 ? (data.suggestion.street2 + ', ') : '') +
-                        data.suggestion.city + ', ' + data.suggestion.state + ', ' + data.suggestion.zip +
-                        '? Corrige la dirección, por favor.';
-                      formValidating = false;
-                      renderSteps();
-                    } else {
-                      formError = data.message || 'Dirección no válida. Revisa tus datos.';
-                      formValidating = false;
-                      renderSteps();
-                    }
-                  } catch (err) {
-                    formError = 'Error validando la dirección. Intenta de nuevo.';
-                    formValidating = false;
-                    renderSteps();
-                  }
-                });
-              }, 0);
-            }
-            resultSection.appendChild(formSection);
-          }
-        } else {
-          resultSection.innerHTML = `<div class="no-offer">No hay oferta para esta combinación.</div>`;
-        }
-        if (!formSubmitted) {
-          const restartBtn = document.createElement('button');
-          restartBtn.className = 'restart-btn';
-          restartBtn.textContent = 'Start again';
-          restartBtn.onclick = () => {
-            selection = { device_model: null, carrier: null, storage: null, device_condition: null };
-            openStep = 0;
-            showForm = false;
-            window.paymentButtonState = { selected: null, confirmValue: "", error: "" };
-            window.formState = {
-              nombre: "",
-              contacto: "",
-              autocomplete: "",
-              street1: "",
-              street2: "",
-              city: "",
-              state: "",
-              zip: ""
-            };
-            offerHistoryId = null;
-            renderSteps();
-          };
-          resultSection.appendChild(restartBtn);
-        }
-        stepsDiv.appendChild(resultSection);
-      }
-    }
+
     function renderSummaryPage(data) {
       if (!data) return;
       const { envio, label_url, tracking_code } = data;
@@ -796,6 +790,7 @@
         </div>
       `;
     }
+
     (async function init() {
       try {
         const res = await fetch(ENDPOINT);
@@ -808,6 +803,7 @@
       }
       renderSteps();
     })();
+    // ========== JS FIN ==========
   </script>
 </body>
 </html>
