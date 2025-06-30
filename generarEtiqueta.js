@@ -11,6 +11,7 @@ const pool = require('../db');
 const api = new EasyPost(process.env.EASYPOST_API_KEY);
 const router = express.Router();
 
+// Validadores
 function checkAddress(addr) {
   return (
     addr &&
@@ -26,6 +27,7 @@ function checkParcel(parcel) {
   );
 }
 
+// Endpoint para generar etiqueta y registrar orden/tracking
 router.post('/generar-etiqueta', async (req, res) => {
   try {
     const toAddress = req.body.to_address;
@@ -58,12 +60,11 @@ router.post('/generar-etiqueta', async (req, res) => {
       from_address: fromAddress,
       parcel: parcel,
     });
-
     const rate = shipment.rates && shipment.rates.length > 0 ? shipment.rates[0] : null;
     if (!rate) throw new Error('No se encontraron tarifas disponibles para el envío');
     shipment = await api.Shipment.buy(shipment.id, rate);
 
-    // Variables que necesitas para crear la orden
+    // Obtener datos del shipment
     const tracking_code = shipment.tracking_code;
     const label_url = shipment.postage_label ? shipment.postage_label.label_url : null;
     const carrier = (shipment.selected_rate && shipment.selected_rate.carrier) || rate.carrier;
@@ -73,7 +74,7 @@ router.post('/generar-etiqueta', async (req, res) => {
     const shipment_id = shipment.id;
     const statusEnvio = shipment.status;
 
-    // 2. Crear la orden SI NO EXISTE ya
+    // 2. Crear la orden SÓLO si no existe y SÓLO después de tener la etiqueta
     if (!orderId && offerHistoryId) {
       try {
         orderResult = await pool.query(
