@@ -177,25 +177,16 @@ router.post('/generar-etiqueta', async (req, res) => {
       }
     }
 
-    // 11. Registro/actualización en la tabla trackings (guarda costos y servicio)
+    // 11. Registro/actualización en la tabla trackings (FORZANDO el update siempre)
     try {
+      // Primer intento de inserción (solo si no existe)
       await pool.query(
         `INSERT INTO trackings (
           order_id, tracking_code, status, carrier, shipment_id,
           carrier_service, shipment_cost, shipment_currency, public_url, created_at, updated_at
         )
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now(), now())
-        ON CONFLICT (tracking_code) DO UPDATE SET
-          order_id = EXCLUDED.order_id,
-          status = EXCLUDED.status,
-          carrier = EXCLUDED.carrier,
-          shipment_id = EXCLUDED.shipment_id,
-          carrier_service = EXCLUDED.carrier_service,
-          shipment_cost = EXCLUDED.shipment_cost,
-          shipment_currency = EXCLUDED.shipment_currency,
-          public_url = EXCLUDED.public_url,
-          updated_at = now()
-        `,
+        ON CONFLICT (tracking_code) DO NOTHING`,
         [
           orderResult && orderResult.rows ? orderResult.rows[0].id : null,
           tracking_code,
@@ -208,7 +199,33 @@ router.post('/generar-etiqueta', async (req, res) => {
           shipment.public_url || null
         ]
       );
-      console.error('Insert/Update en trackings ejecutado con shipment_cost:', shipment_cost, 'currency:', shipment_currency);
+      // UPDATE SIEMPRE (para asegurar que los campos importantes quedan)
+      await pool.query(
+        `UPDATE trackings
+         SET order_id = $1,
+             status = $2,
+             carrier = $3,
+             shipment_id = $4,
+             carrier_service = $5,
+             shipment_cost = $6,
+             shipment_currency = $7,
+             public_url = $8,
+             updated_at = now()
+         WHERE tracking_code = $9
+        `,
+        [
+          orderResult && orderResult.rows ? orderResult.rows[0].id : null,
+          status,
+          carrier,
+          shipment_id,
+          carrier_service,
+          shipment_cost,
+          shipment_currency,
+          shipment.public_url || null,
+          tracking_code
+        ]
+      );
+      console.error('FORZADO UPDATE en trackings con shipment_cost:', shipment_cost, 'currency:', shipment_currency);
     } catch (err) {
       console.error('Error al registrar el tracking en DB:', err.message);
     }
