@@ -103,18 +103,27 @@ router.post('/generar-etiqueta', async (req, res) => {
     shipment = await api.Shipment.buy(shipment.id, rate);
 
     // 4. Extraer datos para DB, asegurando que existan los valores correctos
+    // Usa shipment.selected_rate como preferido, sino usa el rate usado para comprar
+    const selectedRate = shipment.selected_rate || rate;
+    const shipment_cost = selectedRate ? Number(selectedRate.rate) : null;
+    const shipment_currency = selectedRate ? selectedRate.currency : null;
     const tracking_code = shipment.tracking_code;
     const shipment_id = shipment.id;
     const status = shipment.status;
-    const carrier = shipment.selected_rate?.carrier || rate.carrier;
-    const carrier_service = shipment.selected_rate?.service || rate.service;
-    const shipment_cost = shipment.selected_rate ? Number(shipment.selected_rate.rate) : null;
-    const shipment_currency = shipment.selected_rate ? shipment.selected_rate.currency : null;
+    const carrier = selectedRate.carrier;
+    const carrier_service = selectedRate.service;
     const public_url = shipment.public_url || null;
 
-    // DEBUG: Verifica valores antes de insert
-    console.log('selected_rate:', shipment.selected_rate);
-    console.log('shipment_cost:', shipment_cost, 'shipment_currency:', shipment_currency);
+    // DEBUG: Verifica valores antes del insert
+    console.log('Antes del insert:', {
+      shipment_cost,
+      shipment_currency,
+      offerHistoryId: req.body.offer_history_id,
+      tracking_code,
+      labelUrl: shipment.postage_label.label_url
+    });
+    console.log('shipment.selected_rate:', shipment.selected_rate);
+    console.log('rate usado para comprar:', rate);
 
     // 5. Email del destinatario y URL de la etiqueta (PNG normalmente)
     const destinatario = toAddress.email;
@@ -175,9 +184,16 @@ router.post('/generar-etiqueta', async (req, res) => {
           order_id = orderResult.rows[0].id;
         }
       } catch (err) {
+        // Mostramos el error en consola y se lo mandamos al frontend
         console.error('Error al registrar la orden en DB:', err.message, {
           shipment_cost,
           shipment_currency
+        });
+        return res.status(500).json({
+          status: 'error',
+          message: 'No se pudo registrar la orden en la base de datos.',
+          error: err.message,
+          details: err.detail || null
         });
       }
     }
