@@ -159,9 +159,7 @@ router.post('/generar-etiqueta', async (req, res) => {
             label_url,
             shipped_at,
             shipment_cost,
-            shipment_currency,
-            created_at,
-            updated_at
+            shipment_currency
           ) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
           [
             offerHistoryId,              // $1
