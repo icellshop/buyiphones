@@ -13,47 +13,17 @@ const pool = require('../db');
 
 const router = express.Router();
 
-// Endpoint para validar dirección con Google Geocoding API
-router.post('/validar-direccion', async (req, res) => {
-  let address = req.body.address;
+function checkAddress(addr) {
+  return addr && addr.name && addr.street1 && addr.city && addr.state && addr.zip && addr.country && addr.email;
+}
 
-  if (!address) {
-    const { street1, street2, city, state, zip } = req.body;
-    if (!street1 || !city || !state || !zip) {
-      return res.status(400).json({ error: 'Faltan campos de dirección', recibido: req.body });
-    }
-    address = `${street1}, ${street2 ? street2 + ', ' : ''}${city}, ${state}, ${zip}, US`;
-  }
+function checkParcel(parcel) {
+  return parcel && parcel.length && parcel.width && parcel.height && parcel.weight;
+}
 
-  try {
-    const apiKey = process.env.GOOGLE_API_KEY;
-    const response = await axios.get('https://maps.googleapis.com/maps/api/geocode/json', {
-      params: { address, key: apiKey }
-    });
-
-    if (response.data.status === 'OK' && response.data.results.length > 0) {
-      return res.json({
-        status: 'valid',
-        datos: response.data.results[0],
-        addressSent: address
-      });
-    } else {
-      return res.json({
-        status: 'invalid',
-        message: 'Dirección no encontrada',
-        addressSent: address,
-        recibido: req.body
-      });
-    }
-  } catch (error) {
-    return res.status(500).json({ error: 'Error al consultar Google', details: error.message });
-  }
-});
-
-// Endpoint para generar etiqueta y registrar orden/tracking
 router.post('/generar-etiqueta', async (req, res) => {
+  console.log('[generar-etiqueta] Payload:', JSON.stringify(req.body, null, 2));
   try {
-    // Preparar direcciones y paquete
     const toAddress = req.body.to_address;
     const fromAddress = req.body.from_address;
     const parcel = req.body.parcel || {
@@ -63,9 +33,8 @@ router.post('/generar-etiqueta', async (req, res) => {
       weight: req.body.weight,
     };
 
-    // Validación mínima para evitar errores tontos
-    if (!toAddress || !fromAddress || !parcel) {
-      return res.status(400).json({ status: 'error', message: 'Faltan campos obligatorios: to_address, from_address o parcel' });
+    if (!checkAddress(toAddress) || !checkAddress(fromAddress) || !checkParcel(parcel)) {
+      return res.status(400).json({ status: 'error', message: 'Faltan o están incompletos los datos de envío.' });
     }
 
     // Crear etiqueta EasyPost
