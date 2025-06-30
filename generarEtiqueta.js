@@ -112,6 +112,14 @@ router.post('/generar-etiqueta', async (req, res) => {
     const shipment_cost = Number(shipment.selected_rate?.rate || rate.rate);
     const shipment_currency = shipment.selected_rate?.currency || rate.currency;
 
+    // LOG de los datos del shipment (aquí es donde debes poner el console.log)
+    console.log('Datos del shipment:', {
+      carrier,
+      carrier_service,
+      shipment_cost,
+      shipment_currency
+    });
+
     // 4. Email del destinatario y URL de la etiqueta (PNG normalmente)
     const destinatario = toAddress.email;
     const labelUrl = shipment.postage_label.label_url;
