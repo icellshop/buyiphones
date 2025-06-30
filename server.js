@@ -7,30 +7,30 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Dependencias y routers
 const api = new EasyPost(process.env.EASYPOST_API_KEY);
 const sendLabelEmail = require('./mailgun-send');
 const mailgunRouter = require('./mailgun-send').router;
 const offersCatalogRouter = require('./offerscatalog');
-const pool = require('./db');
+const pool = require('./db'); // <-- Tu conexión a Postgres
 const easypostWebhook = require('./routes/easypost-webhook');
 
-// 1. Webhook primero (para que pueda usar raw body si lo requiere)
-app.use('/api/easypost-webhook', easypostWebhook);
 
-// 2. Middlewares generales
+
+app.use('/api/easypost-webhook', easypostWebhook);
+app.use(easypostWebhook);
+app.use(express.json({ type: ['application/json', 'application/*+json'] })); // Necesario para webhooks de EasyPost
+app.use(easypostWebhook);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
-// 3. Otros routers
+app.use(express.json({ type: ['application/json', 'application/*+json'] }));
 app.use(offersCatalogRouter);
-if (mailgunRouter) app.use(mailgunRouter);
+app.use(mailgunRouter);
 
-// 4. Archivos estáticos
+// Servir archivos estáticos de la carpeta 'public'
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/tmp', express.static(path.join(__dirname, 'public', 'tmp')));
 
-// 5. Rutas de páginas
+// Rutas de páginas
 app.get('/env.js', (req, res) => {
   res.type('application/javascript');
   res.send(`window.APP_CONFIG = { OFFERS_ENDPOINT: "${process.env.OFFERS_ENDPOINT}" };`);
@@ -42,7 +42,7 @@ app.get('/we-are', (req, res) => res.sendFile(path.join(__dirname, 'public', 'we
 app.get('/wholesale', (req, res) => res.sendFile(path.join(__dirname, 'public', 'wholesale.html')));
 app.get('/index.html', (req, res) => res.redirect('/'));
 
-// 6. Endpoint para registrar la oferta
+// Endpoint para registrar la oferta en la base de datos (NECESARIO PARA TU FLUJO)
 app.post('/api/register-offer', async (req, res) => {
   console.log("Recibido en /api/register-offer:", req.body);
   try {
@@ -52,7 +52,7 @@ app.post('/api/register-offer', async (req, res) => {
     }
     const result = await pool.query(
       `INSERT INTO offers_history (offer_id, email, ip_address, created_at)
-      VALUES ($1, $2, $3, now()) RETURNING id`,
+       VALUES ($1, $2, $3, now()) RETURNING id`,
       [offer_id, email, ip_address || null]
     );
     res.json({ success: true, data: { id: result.rows[0].id } });
@@ -62,7 +62,7 @@ app.post('/api/register-offer', async (req, res) => {
   }
 });
 
-// 7. Endpoint para validar dirección
+// Endpoint para validar dirección con Google Geocoding API
 app.post('/validar-direccion', async (req, res) => {
   let address = req.body.address;
 
@@ -99,7 +99,7 @@ app.post('/validar-direccion', async (req, res) => {
   }
 });
 
-// 8. Endpoint para generar etiqueta (te recomiendo moverlo a un router aparte)
+// Endpoint para generar etiqueta con EasyPost Y registrar la orden en la base de datos
 app.post('/generar-etiqueta', async (req, res) => {
   try {
     const toAddress = req.body.to_address;
@@ -157,7 +157,7 @@ app.post('/generar-etiqueta', async (req, res) => {
       try {
         orderResult = await pool.query(
           `INSERT INTO orders (offer_history_id, status, tracking_code, label_url, shipped_at, created_at, updated_at) 
-          VALUES ($1, $2, $3, $4, $5, now(), now()) RETURNING *`,
+           VALUES ($1, $2, $3, $4, $5, now(), now()) RETURNING *`,
           [offerHistoryId, 'awaiting_shipment', shipment.tracking_code, shipment.postage_label.label_url, null]
         );
       } catch (err) {
@@ -189,12 +189,12 @@ app.post('/generar-etiqueta', async (req, res) => {
   }
 });
 
-// 9. Catch-all para frontend SPA
+// Catch-all para frontend SPA
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// 10. Iniciar el servidor
+// Iniciar el servidor SIEMPRE en process.env.PORT
 app.listen(PORT, () => {
   console.log(`Servidor Express escuchando en puerto ${PORT}`);
 });
