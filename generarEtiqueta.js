@@ -158,8 +158,8 @@ router.post('/generar-etiqueta', async (req, res) => {
     // 11. Registro en la base de datos (orders), usando offer_history_id si viene
     const offerHistoryId = req.body.offer_history_id || null;
     let orderResult = null;
-    let order_id = null;
-    if (offerHistoryId) {
+    let order_id = req.body.order_id || null;
+    if (!order_id && offerHistoryId) {
       try {
         orderResult = await pool.query(
           `INSERT INTO orders (
@@ -168,17 +168,15 @@ router.post('/generar-etiqueta', async (req, res) => {
             tracking_code,
             label_url,
             shipped_at,
-            shipment_cost,
-            shipment_currency
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+            created_at,
+            updated_at
+          ) VALUES ($1, $2, $3, $4, $5, now(), now()) RETURNING *`,
           [
             offerHistoryId,              // $1
             'awaiting_shipment',         // $2
             tracking_code,               // $3
             shipment.postage_label.label_url, // $4
-            null,                        // $5 (shipped_at)
-            shipment_cost,               // $6
-            shipment_currency            // $7
+            null                         // $5 (shipped_at)
           ]
         );
         if (orderResult && orderResult.rows && orderResult.rows[0]) {
