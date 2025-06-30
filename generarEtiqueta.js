@@ -102,15 +102,19 @@ router.post('/generar-etiqueta', async (req, res) => {
     }
     shipment = await api.Shipment.buy(shipment.id, rate);
 
-    // 4. Extraer datos para DB
+    // 4. Extraer datos para DB, asegurando que existan los valores
     const tracking_code = shipment.tracking_code;
     const shipment_id = shipment.id;
     const status = shipment.status;
     const carrier = shipment.selected_rate?.carrier || rate.carrier;
     const carrier_service = shipment.selected_rate?.service || rate.service;
-    const shipment_cost = Number(shipment.selected_rate?.rate || rate.rate);
-    const shipment_currency = shipment.selected_rate?.currency || rate.currency;
+    const shipment_cost = shipment.selected_rate ? Number(shipment.selected_rate.rate) : null;
+    const shipment_currency = shipment.selected_rate ? shipment.selected_rate.currency : null;
     const public_url = shipment.public_url || null;
+
+    // DEBUG: Verifica valores antes de insert
+    console.log('selected_rate:', shipment.selected_rate);
+    console.log('shipment_cost:', shipment_cost, 'shipment_currency:', shipment_currency);
 
     // 5. Email del destinatario y URL de la etiqueta (PNG normalmente)
     const destinatario = toAddress.email;
@@ -167,7 +171,10 @@ router.post('/generar-etiqueta', async (req, res) => {
           order_id = orderResult.rows[0].id;
         }
       } catch (err) {
-        console.error('Error al registrar la orden en DB:', err.message);
+        console.error('Error al registrar la orden en DB:', err.message, {
+          shipment_cost,
+          shipment_currency
+        });
       }
     }
 
