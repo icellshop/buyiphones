@@ -133,6 +133,22 @@ app.post('/generar-etiqueta', async (req, res) => {
     // COMPRA la etiqueta usando el método correcto según la documentación
     shipment = await api.Shipment.buy(shipment.id, rate);
 
+    // Calcula costos
+    const selectedRate = shipment.selected_rate || rate;
+    const shipment_cost = selectedRate ? Number(selectedRate.rate) : null;
+    const shipment_currency = selectedRate ? selectedRate.currency : null;
+
+    // Debug log antes del insert
+    console.log('Antes del insert:', {
+      shipment_cost,
+      shipment_currency,
+      offerHistoryId: req.body.offer_history_id,
+      tracking_code: shipment.tracking_code,
+      labelUrl: shipment.postage_label.label_url
+    });
+    console.log('selected_rate después del buy:', shipment.selected_rate);
+    console.log('rate usado para comprar:', rate);
+
     // --- ENVÍA EL CORREO AUTOMATICAMENTE ---
     let emailResult = null;
     try {
@@ -155,9 +171,20 @@ app.post('/generar-etiqueta', async (req, res) => {
     if (offerHistoryId) {
       try {
         orderResult = await pool.query(
-          `INSERT INTO orders (offer_history_id, status, tracking_code, label_url, shipped_at, created_at, updated_at) 
-          VALUES ($1, $2, $3, $4, $5, now(), now()) RETURNING *`,
-          [offerHistoryId, 'awaiting_shipment', shipment.tracking_code, shipment.postage_label.label_url, null]
+          `INSERT INTO orders (
+            offer_history_id, status, tracking_code, label_url, shipped_at, 
+            shipment_cost, shipment_currency, created_at, updated_at
+          ) 
+          VALUES ($1, $2, $3, $4, $5, $6, $7, now(), now()) RETURNING *`,
+          [
+            offerHistoryId,
+            'awaiting_shipment',
+            shipment.tracking_code,
+            shipment.postage_label.label_url,
+            null,
+            shipment_cost,
+            shipment_currency
+          ]
         );
       } catch (err) {
         console.error('Error al registrar la orden en DB:', err.message);
