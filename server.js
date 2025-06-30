@@ -99,18 +99,84 @@ app.post('/validar-direccion', async (req, res) => {
 });
 
 // 8. Endpoint para generar etiqueta (ahora insertando en trackings)
+// DEPURACIÓN: Puedes POSTEAR a /debug-body para ver el body recibido
+app.post('/debug-body', (req, res) => {
+  return res.json({ recibido: req.body });
+});
+
 app.post('/generar-etiqueta', async (req, res) => {
+  // Validación robusta y soporte para crear order_id si solo viene offer_history_id
+  function checkAddress(addr) {
+    return (
+      addr &&
+      addr.name && addr.street1 && addr.city &&
+      addr.state && addr.zip && addr.country && addr.email
+    );
+  }
+
+  function checkParcel(parcel) {
+    return (
+      parcel &&
+      parcel.length && parcel.width && parcel.height && parcel.weight
+    );
+  }
+
   try {
+    // Permite parcel directo o por campos sueltos
     const toAddress = req.body.to_address;
     const fromAddress = req.body.from_address;
-    const parcel = req.body.parcel;
-    const orderId = req.body.order_id; // Debe venir del frontend o asociarse de alguna manera
-    const direction = req.body.direction || "to_icellshop"; // "return_to_sender" para devoluciones
+    const parcel = req.body.parcel || {
+      length: req.body.length,
+      width: req.body.width,
+      height: req.body.height,
+      weight: req.body.weight,
+    };
+    const direction = req.body.direction || "to_icellshop";
 
-    if (!toAddress || !fromAddress || !parcel || !orderId) {
+    // Validación explícita
+    if (!checkAddress(toAddress)) {
+      return res.status(400).json({ status: 'error', message: 'Falta o está incompleto to_address', body: req.body });
+    }
+    if (!checkAddress(fromAddress)) {
+      return res.status(400).json({ status: 'error', message: 'Falta o está incompleto from_address', body: req.body });
+    }
+    if (!checkParcel(parcel)) {
+      return res.status(400).json({ status: 'error', message: 'Falta o está incompleto parcel', body: req.body });
+    }
+
+    // Soporta order_id o crea la orden si solo viene offer_history_id
+    let orderId = req.body.order_id || null;
+    const offerHistoryId = req.body.offer_history_id || null;
+    let orderResult = null;
+
+    if (!orderId && offerHistoryId) {
+      try {
+        orderResult = await pool.query(
+          `INSERT INTO orders (
+            offer_history_id, status, created_at, updated_at
+          ) VALUES ($1, $2, now(), now()) RETURNING *`,
+          [
+            offerHistoryId,
+            'awaiting_shipment'
+          ]
+        );
+        if (orderResult && orderResult.rows && orderResult.rows[0]) {
+          orderId = orderResult.rows[0].id;
+        }
+      } catch (err) {
+        return res.status(500).json({
+          status: 'error',
+          message: 'No se pudo registrar la orden en la base de datos.',
+          error: err.message,
+          details: err.detail || null
+        });
+      }
+    }
+
+    if (!orderId) {
       return res.status(400).json({
         status: 'error',
-        message: 'Faltan campos obligatorios: to_address, from_address, parcel u order_id'
+        message: 'No se pudo crear ni obtener order_id (falta offer_history_id o error en DB)'
       });
     }
 
@@ -139,15 +205,6 @@ app.post('/generar-etiqueta', async (req, res) => {
     const selectedRate = shipment.selected_rate || rate;
     const shipment_cost = selectedRate ? Number(selectedRate.rate) : null;
     const shipment_currency = selectedRate ? selectedRate.currency : null;
-
-    // Debug log antes del insert
-    console.log('Antes de insertar en trackings:', {
-      shipment_cost,
-      shipment_currency,
-      orderId,
-      tracking_code: shipment.tracking_code,
-      labelUrl: shipment.postage_label.label_url
-    });
 
     // --- ENVÍA EL CORREO AUTOMATICAMENTE ---
     let emailResult = null;

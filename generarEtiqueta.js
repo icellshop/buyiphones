@@ -13,17 +13,33 @@ const pool = require('../db');
 
 const router = express.Router();
 
+// DEPURACIÓN: Responde con lo que recibe
+router.post('/debug-body', (req, res) => {
+  return res.json({ recibido: req.body });
+});
+
+// Funciones de validación
 function checkAddress(addr) {
-  return addr && addr.name && addr.street1 && addr.city && addr.state && addr.zip && addr.country && addr.email;
+  return (
+    addr &&
+    addr.name && addr.street1 && addr.city &&
+    addr.state && addr.zip && addr.country && addr.email
+  );
 }
 
 function checkParcel(parcel) {
-  return parcel && parcel.length && parcel.width && parcel.height && parcel.weight;
+  return (
+    parcel &&
+    parcel.length && parcel.width && parcel.height && parcel.weight
+  );
 }
 
+// Endpoint para generar etiqueta
 router.post('/generar-etiqueta', async (req, res) => {
-  console.log('[generar-etiqueta] Payload:', JSON.stringify(req.body, null, 2));
   try {
+    // DEPURACIÓN: Muestra lo recibido en Render (usa /debug-body si no ves logs)
+    // console.log('[generar-etiqueta] Payload:', JSON.stringify(req.body, null, 2));
+
     const toAddress = req.body.to_address;
     const fromAddress = req.body.from_address;
     const parcel = req.body.parcel || {
@@ -33,8 +49,15 @@ router.post('/generar-etiqueta', async (req, res) => {
       weight: req.body.weight,
     };
 
-    if (!checkAddress(toAddress) || !checkAddress(fromAddress) || !checkParcel(parcel)) {
-      return res.status(400).json({ status: 'error', message: 'Faltan o están incompletos los datos de envío.' });
+    // Validación explícita con mensaje claro
+    if (!checkAddress(toAddress)) {
+      return res.status(400).json({ status: 'error', message: 'Falta o está incompleto to_address', body: req.body });
+    }
+    if (!checkAddress(fromAddress)) {
+      return res.status(400).json({ status: 'error', message: 'Falta o está incompleto from_address', body: req.body });
+    }
+    if (!checkParcel(parcel)) {
+      return res.status(400).json({ status: 'error', message: 'Falta o está incompleto parcel', body: req.body });
     }
 
     // Crear etiqueta EasyPost
@@ -59,7 +82,7 @@ router.post('/generar-etiqueta', async (req, res) => {
     const public_url = shipment.postage_label ? shipment.postage_label.label_url : null;
     const direction = req.body.direction || "to_icellshop";
 
-    // Genera PDF y envía por correo
+    // PDF + correo
     const destinatario = toAddress.email || req.body.contacto;
     const labelUrl = shipment.postage_label.label_url;
     const subject = 'Tu etiqueta de envío de ICellShop';
@@ -97,10 +120,6 @@ router.post('/generar-etiqueta', async (req, res) => {
           order_id = orderResult.rows[0].id;
         }
       } catch (err) {
-        console.error('Error al registrar la orden en DB:', err.message, {
-          shipment_cost,
-          shipment_currency
-        });
         return res.status(500).json({
           status: 'error',
           message: 'No se pudo registrar la orden en la base de datos.',
@@ -150,12 +169,9 @@ router.post('/generar-etiqueta', async (req, res) => {
           direction
         ]
       );
-      console.log(`[EasyPost] Tracking registrado: ${tracking_code} para order_id: ${order_id}`);
     } catch (err) {
-      console.error('Error al registrar el tracking en DB:', err.message, {
-        order_id, tracking_code, status, carrier, shipment_id, carrier_service, public_url,
-        shipment_cost, shipment_currency, direction
-      });
+      // Si esto falla, igual responde, pero informa
+      return res.status(500).json({ status: 'error', message: 'Error insertando tracking', error: err.message });
     }
 
     // Actualiza el total_shipping_cost en orders
@@ -170,27 +186,23 @@ router.post('/generar-etiqueta', async (req, res) => {
           [order_id]
         );
       } catch (err) {
+        // No aborta, solo loguea
         console.error('Error al actualizar total_shipping_cost en orders:', err.message);
       }
     }
 
     res.json({
       status: 'success',
-      label_url: shipment.postage_label ? shipment.postage_label.label_url : null,
+      label_url: labelUrl,
       tracking_code: tracking_code || null,
       shipment,
       order: orderResult && orderResult.rows ? orderResult.rows[0] : null,
     });
   } catch (error) {
-    console.error('ERROR EN /generar-etiqueta:', error);
-    let msg = error.message;
-    if (error.response && error.response.body) {
-      msg = error.response.body.error || JSON.stringify(error.response.body);
-    }
-    res.status(500).json({
+    return res.status(500).json({
       status: 'error',
       message: 'Error generando etiqueta',
-      details: msg,
+      details: error.message,
     });
   }
 });
