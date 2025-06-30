@@ -1,5 +1,4 @@
 const express = require('express');
-const axios = require('axios');
 const EasyPost = require('@easypost/api');
 const path = require('path');
 const fs = require('fs');
@@ -7,18 +6,12 @@ require('dotenv').config();
 
 const sendLabelEmail = require('../mailgun-send');
 const { imageToPDF } = require('../mailgun-send');
-
-const api = new EasyPost(process.env.EASYPOST_API_KEY);
 const pool = require('../db');
 
+const api = new EasyPost(process.env.EASYPOST_API_KEY);
 const router = express.Router();
 
-// DEPURACIÓN: Responde con lo que recibe
-router.post('/debug-body', (req, res) => {
-  return res.json({ recibido: req.body });
-});
-
-// Funciones de validación
+// Validadores
 function checkAddress(addr) {
   return (
     addr &&
@@ -34,12 +27,9 @@ function checkParcel(parcel) {
   );
 }
 
-// Endpoint para generar etiqueta
+// Endpoint para generar etiqueta y registrar orden/tracking
 router.post('/generar-etiqueta', async (req, res) => {
   try {
-    // DEPURACIÓN: Muestra lo recibido en Render (usa /debug-body si no ves logs)
-    // console.log('[generar-etiqueta] Payload:', JSON.stringify(req.body, null, 2));
-
     const toAddress = req.body.to_address;
     const fromAddress = req.body.from_address;
     const parcel = req.body.parcel || {
@@ -48,8 +38,12 @@ router.post('/generar-etiqueta', async (req, res) => {
       height: req.body.height,
       weight: req.body.weight,
     };
+    const direction = req.body.direction || "to_icellshop";
+    let orderId = req.body.order_id || null;
+    const offerHistoryId = req.body.offer_history_id || null;
+    let orderResult = null;
 
-    // Validación explícita con mensaje claro
+    // Validación
     if (!checkAddress(toAddress)) {
       return res.status(400).json({ status: 'error', message: 'Falta o está incompleto to_address', body: req.body });
     }
@@ -60,64 +54,43 @@ router.post('/generar-etiqueta', async (req, res) => {
       return res.status(400).json({ status: 'error', message: 'Falta o está incompleto parcel', body: req.body });
     }
 
-    // Crear etiqueta EasyPost
+    // 1. Crear shipment y obtener tracking_code, label_url
     let shipment = await api.Shipment.create({
       to_address: toAddress,
       from_address: fromAddress,
       parcel: parcel,
     });
-
-    let rate = (shipment && shipment.rates && shipment.rates[0]) ? shipment.rates[0] : null;
-    if (!rate) throw new Error('No se encontraron rates para el envío');
+    const rate = shipment.rates && shipment.rates.length > 0 ? shipment.rates[0] : null;
+    if (!rate) throw new Error('No se encontraron tarifas disponibles para el envío');
     shipment = await api.Shipment.buy(shipment.id, rate);
 
-    const selectedRate = shipment.selected_rate || rate;
-    const shipment_cost = selectedRate ? Number(selectedRate.rate) : null;
-    const shipment_currency = selectedRate ? selectedRate.currency : null;
     const tracking_code = shipment.tracking_code;
+    const label_url = shipment.postage_label ? shipment.postage_label.label_url : null;
+    const carrier = rate.carrier;
+    const carrier_service = rate.service;
+    const shipment_cost = rate.rate ? Number(rate.rate) : null;
+    const shipment_currency = rate.currency || null;
     const shipment_id = shipment.id;
-    const status = shipment.status;
-    const carrier = selectedRate.carrier;
-    const carrier_service = selectedRate.service;
-    const public_url = shipment.postage_label ? shipment.postage_label.label_url : null;
-    const direction = req.body.direction || "to_icellshop";
+    const statusEnvio = shipment.status;
 
-    // PDF + correo
-    const destinatario = toAddress.email || req.body.contacto;
-    const labelUrl = shipment.postage_label.label_url;
-    const subject = 'Tu etiqueta de envío de ICellShop';
-    const text = 'Adjuntamos la etiqueta de tu envío. Imprímela y colócala en el paquete.';
-    const pdfPath = await imageToPDF(labelUrl);
-    const publicPath = path.join(__dirname, '..', 'public', 'tmp');
-    if (!fs.existsSync(publicPath)) fs.mkdirSync(publicPath, { recursive: true });
-    const pdfFileName = `etiqueta_${Date.now()}.pdf`;
-    const finalPdfPath = path.join(publicPath, pdfFileName);
-    fs.copyFileSync(pdfPath, finalPdfPath);
-    fs.unlinkSync(pdfPath);
-    try { await sendLabelEmail(destinatario, subject, text, finalPdfPath); } catch (err) { console.error('Error enviando correo:', err); }
-
-    // --- Lógica de orden y tracking ---
-    let order_id = req.body.order_id || null;
-    const offerHistoryId = req.body.offer_history_id || null;
-    let orderResult = null;
-
-    // Si no hay order_id pero sí offer_history_id, crea la orden
-    if (!order_id && offerHistoryId) {
+    // 2. Crear la orden SI NO EXISTE ya
+    if (!orderId && offerHistoryId) {
       try {
         orderResult = await pool.query(
           `INSERT INTO orders (
-            offer_history_id, status, tracking_code, label_url, shipped_at, created_at, updated_at
-          ) VALUES ($1, $2, $3, $4, $5, now(), now()) RETURNING *`,
+            offer_history_id, status, tracking_code, label_url, shipped_at, received_at, created_at, updated_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, now(), now()) RETURNING *`,
           [
             offerHistoryId,
             'awaiting_shipment',
             tracking_code,
-            shipment.postage_label.label_url,
-            null
+            label_url,
+            null, // shipped_at
+            null  // received_at
           ]
         );
         if (orderResult && orderResult.rows && orderResult.rows[0]) {
-          order_id = orderResult.rows[0].id;
+          orderId = orderResult.rows[0].id;
         }
       } catch (err) {
         return res.status(500).json({
@@ -129,15 +102,14 @@ router.post('/generar-etiqueta', async (req, res) => {
       }
     }
 
-    // Si no existe order_id ni offer_history_id, error
-    if (!order_id) {
+    if (!orderId) {
       return res.status(400).json({
         status: 'error',
         message: 'No se pudo crear ni obtener order_id (falta offer_history_id o error en DB)'
       });
     }
 
-    // Insertar en trackings con cost/currency/direction
+    // 3. Insertar tracking
     try {
       await pool.query(
         `INSERT INTO trackings (
@@ -157,13 +129,13 @@ router.post('/generar-etiqueta', async (req, res) => {
           updated_at = now()
         `,
         [
-          order_id,
+          orderId,
           tracking_code,
-          status,
+          statusEnvio,
           carrier,
           shipment_id,
           carrier_service,
-          public_url,
+          label_url,
           shipment_cost,
           shipment_currency,
           direction
@@ -174,35 +146,62 @@ router.post('/generar-etiqueta', async (req, res) => {
       return res.status(500).json({ status: 'error', message: 'Error insertando tracking', error: err.message });
     }
 
-    // Actualiza el total_shipping_cost en orders
-    if (order_id) {
-      try {
-        await pool.query(
-          `UPDATE orders
-           SET total_shipping_cost = (
-             SELECT COALESCE(SUM(shipment_cost),0) FROM trackings WHERE order_id = $1
-           )
-           WHERE id = $1`,
-          [order_id]
-        );
-      } catch (err) {
-        // No aborta, solo loguea
-        console.error('Error al actualizar total_shipping_cost en orders:', err.message);
+    // 4. Actualizar total_shipping_cost en orders
+    try {
+      await pool.query(
+        `UPDATE orders
+         SET total_shipping_cost = (
+           SELECT COALESCE(SUM(shipment_cost),0) FROM trackings WHERE order_id = $1
+         )
+         WHERE id = $1`,
+        [orderId]
+      );
+    } catch (err) {
+      // No aborta, solo loguea
+      console.error('Error al actualizar total_shipping_cost en orders:', err.message);
+    }
+
+    // 5. PDF y correo
+    let emailResult = null;
+    try {
+      const destinatario = toAddress.email || req.body.contacto;
+      if (!destinatario) throw new Error("No se encontró email de destinatario para enviar la etiqueta.");
+      const subject = "Tu etiqueta de envío ICellShop";
+      const text = "Adjuntamos tu etiqueta para enviar el paquete a ICellShop. Imprímela y pégala en tu paquete.";
+      if (label_url) {
+        const pdfPath = await imageToPDF(label_url);
+        const publicPath = path.join(__dirname, '..', 'public', 'tmp');
+        if (!fs.existsSync(publicPath)) fs.mkdirSync(publicPath, { recursive: true });
+        const pdfFileName = `etiqueta_${Date.now()}.pdf`;
+        const finalPdfPath = path.join(publicPath, pdfFileName);
+        fs.copyFileSync(pdfPath, finalPdfPath);
+        fs.unlinkSync(pdfPath);
+        emailResult = await sendLabelEmail(destinatario, subject, text, finalPdfPath);
       }
+    } catch (mailError) {
+      emailResult = { error: true, details: mailError.message };
     }
 
     res.json({
       status: 'success',
-      label_url: labelUrl,
-      tracking_code: tracking_code || null,
+      label_url,
+      tracking_code,
       shipment,
       order: orderResult && orderResult.rows ? orderResult.rows[0] : null,
+      email_result: emailResult
     });
   } catch (error) {
-    return res.status(500).json({
+    console.error('EasyPost error:', error);
+
+    let msg = error.message;
+    if (error.errors) msg = JSON.stringify(error.errors);
+    if (error.response && error.response.body) {
+      msg = error.response.body.error || JSON.stringify(error.response.body);
+    }
+    res.status(500).json({
       status: 'error',
       message: 'Error generando etiqueta',
-      details: error.message,
+      details: msg,
     });
   }
 });
