@@ -13,7 +13,6 @@ const mailgunRouter = require('./mailgun-send').router;
 const offersCatalogRouter = require('./offerscatalog');
 const pool = require('./db');
 const easypostWebhook = require('./routes/easypost-webhook');
-// Importa el router corregido:
 const generarEtiquetaRouter = require('./routes/generar-etiqueta');
 
 // 1. SOLO EL WEBHOOK SIN json() ANTES (para poder usar rawBody en easypostWebhook)
@@ -26,7 +25,6 @@ app.use(express.urlencoded({ extended: true }));
 // 3. Resto de routers
 app.use(offersCatalogRouter);
 if (mailgunRouter) app.use(mailgunRouter);
-// Usa el router corregido aquí:
 app.use(generarEtiquetaRouter);
 
 // 4. Archivos estáticos
