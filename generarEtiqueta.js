@@ -66,10 +66,10 @@ router.post('/generar-etiqueta', async (req, res) => {
 
     const tracking_code = shipment.tracking_code;
     const label_url = shipment.postage_label ? shipment.postage_label.label_url : null;
-    const carrier = rate.carrier;
-    const carrier_service = rate.service;
-    const shipment_cost = rate.rate ? Number(rate.rate) : null;
-    const shipment_currency = rate.currency || null;
+    const carrier = (shipment.selected_rate && shipment.selected_rate.carrier) || rate.carrier;
+    const carrier_service = (shipment.selected_rate && shipment.selected_rate.service) || rate.service;
+    const shipment_cost = (shipment.selected_rate && shipment.selected_rate.rate) ? Number(shipment.selected_rate.rate) : (rate.rate ? Number(rate.rate) : null);
+    const shipment_currency = (shipment.selected_rate && shipment.selected_rate.currency) || rate.currency || null;
     const shipment_id = shipment.id;
     const statusEnvio = shipment.status;
 
