@@ -1,7 +1,7 @@
 const express = require('express');
 const crypto = require('crypto');
 const router = express.Router();
-const pool = require('../db'); // Ajusta el path si es distinto
+const pool = require('../db');
 const EASYPOST_SECRET = process.env.EASYPOST_WEBHOOK_SECRET;
 
 // Middleware para capturar el raw body
@@ -51,31 +51,25 @@ router.post('/api/easypost-webhook', async (req, res) => {
       const carrier_service = r.carrier_detail?.service || null;
       const carrier_origin = r.carrier_detail?.origin_location || null;
       const carrier_destination = r.carrier_detail?.destination_location || null;
-      const shipment_cost = r.selected_rate?.rate ? Number(r.selected_rate.rate) : null;
-      const shipment_currency = r.selected_rate?.currency || null;
 
       // Busca el order_id si tu tabla orders tiene tracking_code
       let order_id = null;
       try {
         const orderRes = await pool.query(`SELECT id FROM orders WHERE tracking_code = $1`, [tracking_code]);
         if (orderRes.rows.length > 0) order_id = orderRes.rows[0].id;
-      } catch (e) {
-        // Si no tienes orders, puedes omitir esto
-      }
+      } catch (e) {}
 
-      // UPSERT en trackings
+      // UPSERT SOLO actualizando campos de tracking, NUNCA shipment_cost/shipment_currency
       await pool.query(
         `INSERT INTO trackings (
           order_id, tracking_code, status, status_detail, carrier, shipment_id, public_url,
           signed_by, is_return, finalized, est_delivery_date, weight, carrier_service,
-          carrier_origin, carrier_destination, created_at, updated_at, tracking_details,
-          shipment_cost, shipment_currency
+          carrier_origin, carrier_destination, created_at, updated_at, tracking_details
         )
         VALUES (
           $1, $2, $3, $4, $5, $6, $7,
           $8, $9, $10, $11, $12, $13,
-          $14, $15, $16, $17, $18,
-          $19, $20
+          $14, $15, $16, $17, $18
         )
         ON CONFLICT (tracking_code) DO UPDATE SET
           order_id = EXCLUDED.order_id,
@@ -94,15 +88,12 @@ router.post('/api/easypost-webhook', async (req, res) => {
           carrier_destination = EXCLUDED.carrier_destination,
           created_at = EXCLUDED.created_at,
           updated_at = EXCLUDED.updated_at,
-          tracking_details = EXCLUDED.tracking_details,
-          shipment_cost = EXCLUDED.shipment_cost,
-          shipment_currency = EXCLUDED.shipment_currency
+          tracking_details = EXCLUDED.tracking_details
         `,
         [
           order_id, tracking_code, status, status_detail, carrier, shipment_id, public_url,
           signed_by, is_return, finalized, est_delivery_date, weight, carrier_service,
-          carrier_origin, carrier_destination, created_at, updated_at, tracking_details,
-          shipment_cost, shipment_currency
+          carrier_origin, carrier_destination, created_at, updated_at, tracking_details
         ]
       );
 

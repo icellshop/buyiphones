@@ -6,10 +6,10 @@ const fs = require('fs');
 require('dotenv').config();
 
 const sendLabelEmail = require('./mailgun-send');
-const { imageToPDF } = require('./mailgun-send'); // asegúrate de exportar esto en mailgun-send.js
+const { imageToPDF } = require('./mailgun-send');
 
 const api = new EasyPost(process.env.EASYPOST_API_KEY);
-const pool = require('./db'); // Asegúrate de tener tu pool de PostgreSQL aquí
+const pool = require('./db');
 
 const router = express.Router();
 
@@ -50,7 +50,7 @@ router.post('/validar-direccion', async (req, res) => {
   }
 });
 
-// Endpoint para generar etiqueta con EasyPost, enviar por email, devolver PDF y registrar la orden y el tracking
+// Endpoint para generar etiqueta y registrar tracking (tracking_code como llave única)
 router.post('/generar-etiqueta', async (req, res) => {
   console.error('ENTRANDO A /generar-etiqueta');
   try {
@@ -79,7 +79,6 @@ router.post('/generar-etiqueta', async (req, res) => {
       email: req.body.from_address.email,
     };
 
-    // Usa los datos de parcel, permitiendo fallback a req.body.parcel
     const parcel = req.body.parcel || {
       length: req.body.length,
       width: req.body.width,
@@ -96,25 +95,22 @@ router.post('/generar-etiqueta', async (req, res) => {
       parcel: parcel,
     });
 
-    // Log completo del shipment creado
     console.error('Shipment creado:', JSON.stringify(shipment, null, 2));
 
     // 3. Comprar la etiqueta (el mejor rate disponible)
     let rate;
     if (shipment && shipment.rates && shipment.rates[0]) {
-      // Puedes elegir el mejor rate según tus necesidades
       rate = shipment.rates[0];
     } else {
       throw new Error('No se encontraron rates para el envío');
     }
     shipment = await api.Shipment.buy(shipment.id, rate);
 
-    // Log completo del shipment después de comprar
     console.error('Shipment después de buy:', JSON.stringify(shipment, null, 2));
     console.error('Rate original:', rate);
     console.error('selected_rate:', shipment.selected_rate);
 
-    // Extrae detalles importantes para guardar en DB
+    // 4. Extrae detalles importantes para guardar en DB
     const tracking_code = shipment.tracking_code;
     const shipment_id = shipment.id;
     const status = shipment.status;
@@ -123,7 +119,6 @@ router.post('/generar-etiqueta', async (req, res) => {
     const shipment_cost = Number(shipment.selected_rate?.rate || rate.rate);
     const shipment_currency = shipment.selected_rate?.currency || rate.currency;
 
-    // LOG de los datos del shipment
     console.error('Datos del shipment (guardado en DB):', {
       carrier,
       carrier_service,
@@ -131,44 +126,35 @@ router.post('/generar-etiqueta', async (req, res) => {
       shipment_currency
     });
 
-    // 4. Email del destinatario y URL de la etiqueta (PNG normalmente)
+    // 5. Email y PDF
     const destinatario = toAddress.email;
     const labelUrl = shipment.postage_label.label_url;
     const subject = 'Tu etiqueta de envío de ICellShop';
     const text = 'Adjuntamos la etiqueta de tu envío. Imprímela y colócala en el paquete.';
 
-    // 5. Genera PDF temporal desde la imagen (PNG)
     const pdfPath = await imageToPDF(labelUrl);
-
-    // 6. Copia a una carpeta pública para servirlo (por ejemplo, public/tmp/)
     const publicPath = path.join(__dirname, 'public', 'tmp');
     if (!fs.existsSync(publicPath)) fs.mkdirSync(publicPath, { recursive: true });
     const pdfFileName = `etiqueta_${Date.now()}.pdf`;
     const finalPdfPath = path.join(publicPath, pdfFileName);
     fs.copyFileSync(pdfPath, finalPdfPath);
-
-    // 7. Borra el archivo temporal creado por imageToPDF
     fs.unlinkSync(pdfPath);
-
-    // 8. Crea la URL pública (asumiendo que sirves /public como estático y /tmp es accesible)
     const labelPdfUrl = `/tmp/${pdfFileName}`;
 
-    // 9. Envía el correo con el PDF adjunto (finalPdfPath)
     try {
       await sendLabelEmail(destinatario, subject, text, finalPdfPath);
       console.error('Correo enviado a', destinatario);
     } catch (err) {
       console.error('Error enviando correo:', err);
-      // Si falla el correo, igual devuelve la etiqueta por respuesta
     }
 
-    // 10. Registro en la base de datos (orders), usando offer_history_id si viene
+    // 6. Registro en orders (si hay offer_history_id)
     const offerHistoryId = req.body.offer_history_id || null;
     let orderResult = null;
     if (offerHistoryId) {
       try {
         orderResult = await pool.query(
-          `INSERT INTO orders (offer_history_id, status, tracking_code, label_url, shipped_at, created_at, updated_at) 
+          `INSERT INTO orders (offer_history_id, status, tracking_code, label_url, shipped_at, created_at, updated_at)
            VALUES ($1, $2, $3, $4, $5, now(), now()) RETURNING *`,
           [offerHistoryId, 'awaiting_shipment', tracking_code, shipment.postage_label.label_url, null]
         );
@@ -177,16 +163,25 @@ router.post('/generar-etiqueta', async (req, res) => {
       }
     }
 
-    // 11. Registro/actualización en la tabla trackings (FORZANDO el update siempre)
+    // 7. Registro en trackings (usa tracking_code como llave única)
     try {
-      // Primer intento de inserción (solo si no existe)
       await pool.query(
         `INSERT INTO trackings (
           order_id, tracking_code, status, carrier, shipment_id,
           carrier_service, shipment_cost, shipment_currency, public_url, created_at, updated_at
         )
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now(), now())
-        ON CONFLICT (tracking_code) DO NOTHING`,
+        ON CONFLICT (tracking_code) DO UPDATE SET
+          order_id = EXCLUDED.order_id,
+          status = EXCLUDED.status,
+          carrier = EXCLUDED.carrier,
+          shipment_id = EXCLUDED.shipment_id,
+          carrier_service = EXCLUDED.carrier_service,
+          shipment_cost = EXCLUDED.shipment_cost,
+          shipment_currency = EXCLUDED.shipment_currency,
+          public_url = EXCLUDED.public_url,
+          updated_at = now()
+        `,
         [
           orderResult && orderResult.rows ? orderResult.rows[0].id : null,
           tracking_code,
@@ -199,38 +194,11 @@ router.post('/generar-etiqueta', async (req, res) => {
           shipment.public_url || null
         ]
       );
-      // UPDATE SIEMPRE (para asegurar que los campos importantes quedan)
-      const updateResult = await pool.query(
-        `UPDATE trackings
-         SET order_id = $1,
-             status = $2,
-             carrier = $3,
-             shipment_id = $4,
-             carrier_service = $5,
-             shipment_cost = $6,
-             shipment_currency = $7,
-             public_url = $8,
-             updated_at = now()
-         WHERE tracking_code = $9
-        `,
-        [
-          orderResult && orderResult.rows ? orderResult.rows[0].id : null,
-          status,
-          carrier,
-          shipment_id,
-          carrier_service,
-          shipment_cost,
-          shipment_currency,
-          shipment.public_url || null,
-          tracking_code
-        ]
-      );
-      console.error('FORZADO UPDATE en trackings con shipment_cost:', shipment_cost, 'currency:', shipment_currency, 'Filas afectadas:', updateResult.rowCount);
+      console.error('UPSERT en trackings (por generar-etiqueta) con shipment_cost:', shipment_cost, 'currency:', shipment_currency);
     } catch (err) {
       console.error('Error al registrar el tracking en DB:', err.message);
     }
 
-    // 12. Devolver respuesta
     res.json({
       status: 'success',
       label_url: shipment.postage_label ? shipment.postage_label.label_url : null,
