@@ -1,33 +1,36 @@
 const express = require('express');
 const axios = require('axios');
 const path = require('path');
+const EasyPost = require('@easypost/api');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-const offersCatalogRouter = require('./offerscatalog');
+// Dependencias y routers
+const api = new EasyPost(process.env.EASYPOST_API_KEY);
+const sendLabelEmail = require('./mailgun-send');
 const mailgunRouter = require('./mailgun-send').router;
-const easypostWebhookRouter = require('./routes/easypost-webhook');
-const generarEtiquetaRouter = require('./routes/generarEtiqueta');
+const offersCatalogRouter = require('./offerscatalog');
+const pool = require('./db');
+const easypostWebhook = require('./routes/easypost-webhook');
 
-// 1. Webhook: necesita body "raw", así que este debe ir ANTES del express.json general
-app.use('/api/easypost-webhook', easypostWebhookRouter);
+// 1. Webhook primero (para que pueda usar raw body si lo requiere)
+app.use('/api/easypost-webhook', easypostWebhook);
 
-// 2. Resto de middlewares
+// 2. Middlewares generales
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // 3. Otros routers
 app.use(offersCatalogRouter);
-app.use(mailgunRouter);
-app.use(generarEtiquetaRouter);
+if (mailgunRouter) app.use(mailgunRouter);
 
-// 4. Servir archivos estáticos de la carpeta 'public'
+// 4. Archivos estáticos
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/tmp', express.static(path.join(__dirname, 'public', 'tmp')));
 
-// 5. Rutas de páginas (ajusta si tienes un router para esto)
+// 5. Rutas de páginas
 app.get('/env.js', (req, res) => {
   res.type('application/javascript');
   res.send(`window.APP_CONFIG = { OFFERS_ENDPOINT: "${process.env.OFFERS_ENDPOINT}" };`);
@@ -39,8 +42,7 @@ app.get('/we-are', (req, res) => res.sendFile(path.join(__dirname, 'public', 'we
 app.get('/wholesale', (req, res) => res.sendFile(path.join(__dirname, 'public', 'wholesale.html')));
 app.get('/index.html', (req, res) => res.redirect('/'));
 
-// 6. Endpoint para registrar la oferta en la base de datos
-const pool = require('./db');
+// 6. Endpoint para registrar la oferta
 app.post('/api/register-offer', async (req, res) => {
   console.log("Recibido en /api/register-offer:", req.body);
   try {
@@ -50,7 +52,7 @@ app.post('/api/register-offer', async (req, res) => {
     }
     const result = await pool.query(
       `INSERT INTO offers_history (offer_id, email, ip_address, created_at)
-       VALUES ($1, $2, $3, now()) RETURNING id`,
+      VALUES ($1, $2, $3, now()) RETURNING id`,
       [offer_id, email, ip_address || null]
     );
     res.json({ success: true, data: { id: result.rows[0].id } });
@@ -60,12 +62,139 @@ app.post('/api/register-offer', async (req, res) => {
   }
 });
 
-// 7. Catch-all para SPA
+// 7. Endpoint para validar dirección
+app.post('/validar-direccion', async (req, res) => {
+  let address = req.body.address;
+
+  if (!address) {
+    const { street1, street2, city, state, zip } = req.body;
+    if (!street1 || !city || !state || !zip) {
+      return res.status(400).json({ error: 'Faltan campos de dirección', recibido: req.body });
+    }
+    address = `${street1}, ${street2 ? street2 + ', ' : ''}${city}, ${state}, ${zip}, US`;
+  }
+
+  try {
+    const apiKey = process.env.GOOGLE_API_KEY;
+    const response = await axios.get('https://maps.googleapis.com/maps/api/geocode/json', {
+      params: { address, key: apiKey }
+    });
+
+    if (response.data.status === 'OK' && response.data.results.length > 0) {
+      return res.json({
+        status: 'valid',
+        datos: response.data.results[0],
+        addressSent: address
+      });
+    } else {
+      return res.json({
+        status: 'invalid',
+        message: 'Dirección no encontrada',
+        addressSent: address,
+        recibido: req.body
+      });
+    }
+  } catch (error) {
+    return res.status(500).json({ error: 'Error al consultar Google', details: error.message });
+  }
+});
+
+// 8. Endpoint para generar etiqueta (te recomiendo moverlo a un router aparte)
+app.post('/generar-etiqueta', async (req, res) => {
+  try {
+    const toAddress = req.body.to_address;
+    const fromAddress = req.body.from_address;
+    const parcel = req.body.parcel;
+
+    if (!toAddress || !fromAddress || !parcel) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Faltan campos obligatorios: to_address, from_address o parcel'
+      });
+    }
+
+    // Crear el shipment
+    let shipment = await api.Shipment.create({
+      to_address: toAddress,
+      from_address: fromAddress,
+      parcel: parcel,
+    });
+
+    // Selecciona la tarifa más barata disponible (o la primera)
+    const rate = shipment.rates && shipment.rates.length > 0 ? shipment.rates[0] : null;
+
+    if (!rate) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'No se encontraron tarifas disponibles para el envío',
+        details: shipment
+      });
+    }
+
+    // COMPRA la etiqueta usando el método correcto según la documentación
+    shipment = await api.Shipment.buy(shipment.id, rate);
+
+    // --- ENVÍA EL CORREO AUTOMATICAMENTE ---
+    let emailResult = null;
+    try {
+      const destinatario = toAddress.email || req.body.contacto;
+      if (!destinatario) throw new Error("No se encontró email de destinatario para enviar la etiqueta.");
+
+      const asunto = "Tu etiqueta de envío ICellShop";
+      const texto = "Adjuntamos tu etiqueta para enviar el paquete a ICellShop. Imprímela y pégala en tu paquete.";
+
+      if (shipment.postage_label && shipment.postage_label.label_url) {
+        emailResult = await sendLabelEmail(destinatario, asunto, texto, shipment.postage_label.label_url);
+      }
+    } catch (mailError) {
+      emailResult = { error: true, details: mailError.message };
+    }
+
+    // REGISTRA LA ORDEN EN LA BASE DE DATOS SI offer_history_id VIENE
+    const offerHistoryId = req.body.offer_history_id || null;
+    let orderResult = null;
+    if (offerHistoryId) {
+      try {
+        orderResult = await pool.query(
+          `INSERT INTO orders (offer_history_id, status, tracking_code, label_url, shipped_at, created_at, updated_at) 
+          VALUES ($1, $2, $3, $4, $5, now(), now()) RETURNING *`,
+          [offerHistoryId, 'awaiting_shipment', shipment.tracking_code, shipment.postage_label.label_url, null]
+        );
+      } catch (err) {
+        console.error('Error al registrar la orden en DB:', err.message);
+      }
+    }
+
+    res.json({
+      status: 'success',
+      label_url: shipment.postage_label ? shipment.postage_label.label_url : null,
+      tracking_code: shipment.tracking_code || null,
+      shipment,
+      order: orderResult && orderResult.rows ? orderResult.rows[0] : null,
+      email_result: emailResult
+    });
+  } catch (error) {
+    console.error('EasyPost error:', error);
+
+    let msg = error.message;
+    if (error.errors) msg = JSON.stringify(error.errors);
+    if (error.response && error.response.body) {
+      msg = error.response.body.error || JSON.stringify(error.response.body);
+    }
+    res.status(500).json({
+      status: 'error',
+      message: 'Error generando etiqueta',
+      details: msg,
+    });
+  }
+});
+
+// 9. Catch-all para frontend SPA
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// 8. Iniciar el servidor
+// 10. Iniciar el servidor
 app.listen(PORT, () => {
   console.log(`Servidor Express escuchando en puerto ${PORT}`);
 });
