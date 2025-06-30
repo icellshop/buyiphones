@@ -13,6 +13,8 @@ const mailgunRouter = require('./mailgun-send').router;
 const offersCatalogRouter = require('./offerscatalog');
 const pool = require('./db');
 const easypostWebhook = require('./routes/easypost-webhook');
+// Importa el router corregido:
+const generarEtiquetaRouter = require('./routes/generar-etiqueta');
 
 // 1. SOLO EL WEBHOOK SIN json() ANTES (para poder usar rawBody en easypostWebhook)
 app.use('/api/easypost-webhook', easypostWebhook);
@@ -24,6 +26,8 @@ app.use(express.urlencoded({ extended: true }));
 // 3. Resto de routers
 app.use(offersCatalogRouter);
 if (mailgunRouter) app.use(mailgunRouter);
+// Usa el router corregido aquí:
+app.use(generarEtiquetaRouter);
 
 // 4. Archivos estáticos
 app.use(express.static(path.join(__dirname, 'public')));
@@ -98,198 +102,13 @@ app.post('/validar-direccion', async (req, res) => {
   }
 });
 
-// 8. Endpoint para generar etiqueta (ahora insertando en trackings)
-// DEPURACIÓN: Puedes POSTEAR a /debug-body para ver el body recibido
+// 8. Endpoint para debug de body
 app.post('/debug-body', (req, res) => {
   return res.json({ recibido: req.body });
 });
 
-app.post('/generar-etiqueta', async (req, res) => {
-  // Validación robusta y soporte para crear order_id si solo viene offer_history_id
-  function checkAddress(addr) {
-    return (
-      addr &&
-      addr.name && addr.street1 && addr.city &&
-      addr.state && addr.zip && addr.country && addr.email
-    );
-  }
-
-  function checkParcel(parcel) {
-    return (
-      parcel &&
-      parcel.length && parcel.width && parcel.height && parcel.weight
-    );
-  }
-
-  try {
-    // Permite parcel directo o por campos sueltos
-    const toAddress = req.body.to_address;
-    const fromAddress = req.body.from_address;
-    const parcel = req.body.parcel || {
-      length: req.body.length,
-      width: req.body.width,
-      height: req.body.height,
-      weight: req.body.weight,
-    };
-    const direction = req.body.direction || "to_icellshop";
-
-    // Validación explícita
-    if (!checkAddress(toAddress)) {
-      return res.status(400).json({ status: 'error', message: 'Falta o está incompleto to_address', body: req.body });
-    }
-    if (!checkAddress(fromAddress)) {
-      return res.status(400).json({ status: 'error', message: 'Falta o está incompleto from_address', body: req.body });
-    }
-    if (!checkParcel(parcel)) {
-      return res.status(400).json({ status: 'error', message: 'Falta o está incompleto parcel', body: req.body });
-    }
-
-    // Soporta order_id o crea la orden si solo viene offer_history_id
-    let orderId = req.body.order_id || null;
-    const offerHistoryId = req.body.offer_history_id || null;
-    let orderResult = null;
-
-    if (!orderId && offerHistoryId) {
-  try {
-    orderResult = await pool.query(
-      `INSERT INTO orders (
-        offer_history_id, status, tracking_code, label_url, shipped_at, received_at, created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, now(), now()) RETURNING *`,
-      [
-        offerHistoryId,
-        'awaiting_shipment',
-        tracking_code,                              // <-- Debes tener tracking_code definido antes de este insert
-        shipment.postage_label ? shipment.postage_label.label_url : null, // <-- lo mismo para shipment
-        null,                                       // shipped_at
-        null                                        // received_at
-      ]
-    );
-    if (orderResult && orderResult.rows && orderResult.rows[0]) {
-      orderId = orderResult.rows[0].id;
-    }
-  } catch (err) {
-    return res.status(500).json({
-      status: 'error',
-      message: 'No se pudo registrar la orden en la base de datos.',
-      error: err.message,
-      details: err.detail || null
-    });
-  }
-}
-
-    if (!orderId) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'No se pudo crear ni obtener order_id (falta offer_history_id o error en DB)'
-      });
-    }
-
-    // Crear el shipment
-    let shipment = await api.Shipment.create({
-      to_address: toAddress,
-      from_address: fromAddress,
-      parcel: parcel,
-    });
-
-    // Selecciona la tarifa más barata disponible (o la primera)
-    const rate = shipment.rates && shipment.rates.length > 0 ? shipment.rates[0] : null;
-
-    if (!rate) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'No se encontraron tarifas disponibles para el envío',
-        details: shipment
-      });
-    }
-
-    // COMPRA la etiqueta usando el método correcto según la documentación
-    shipment = await api.Shipment.buy(shipment.id, rate);
-
-    // Calcula costos
-    const selectedRate = shipment.selected_rate || rate;
-    const shipment_cost = selectedRate ? Number(selectedRate.rate) : null;
-    const shipment_currency = selectedRate ? selectedRate.currency : null;
-
-    // --- ENVÍA EL CORREO AUTOMATICAMENTE ---
-    let emailResult = null;
-    try {
-      const destinatario = toAddress.email || req.body.contacto;
-      if (!destinatario) throw new Error("No se encontró email de destinatario para enviar la etiqueta.");
-
-      const asunto = "Tu etiqueta de envío ICellShop";
-      const texto = "Adjuntamos tu etiqueta para enviar el paquete a ICellShop. Imprímela y pégala en tu paquete.";
-
-      if (shipment.postage_label && shipment.postage_label.label_url) {
-        emailResult = await sendLabelEmail(destinatario, asunto, texto, shipment.postage_label.label_url);
-      }
-    } catch (mailError) {
-      emailResult = { error: true, details: mailError.message };
-    }
-
-    // REGISTRA EL TRACKING EN LA BASE DE DATOS
-    let trackingResult = null;
-    try {
-      trackingResult = await pool.query(
-        `INSERT INTO trackings (
-            order_id, tracking_code, status, carrier, shipment_id, carrier_service, public_url,
-            shipment_cost, shipment_currency, direction, created_at, updated_at
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now(), now())
-          RETURNING *`,
-        [
-          orderId,
-          shipment.tracking_code,
-          shipment.status,
-          shipment.carrier,
-          shipment.id,
-          selectedRate && selectedRate.service ? selectedRate.service : null,
-          shipment.postage_label && shipment.postage_label.label_url ? shipment.postage_label.label_url : null,
-          shipment_cost,
-          shipment_currency,
-          direction
-        ]
-      );
-    } catch (err) {
-      console.error('Error al registrar el tracking en DB:', err.message);
-    }
-
-    // Actualiza el total_shipping_cost en orders
-    try {
-      await pool.query(
-        `UPDATE orders
-         SET total_shipping_cost = (
-           SELECT COALESCE(SUM(shipment_cost),0) FROM trackings WHERE order_id = $1
-         )
-         WHERE id = $1
-        `,
-        [orderId]
-      );
-    } catch (err) {
-      console.error('Error al actualizar total_shipping_cost en orders:', err.message);
-    }
-
-    res.json({
-      status: 'success',
-      label_url: shipment.postage_label ? shipment.postage_label.label_url : null,
-      tracking_code: shipment.tracking_code || null,
-      shipment,
-      tracking: trackingResult && trackingResult.rows ? trackingResult.rows[0] : null,
-      email_result: emailResult
-    });
-  } catch (error) {
-    console.error('EasyPost error:', error);
-
-    let msg = error.message;
-    if (error.errors) msg = JSON.stringify(error.errors);
-    if (error.response && error.response.body) {
-      msg = error.response.body.error || JSON.stringify(error.response.body);
-    }
-    res.status(500).json({
-      status: 'error',
-      message: 'Error generando etiqueta',
-      details: msg,
-    });
-  }
-});
+// *** YA NO DEBE HABER ENDPOINT /generar-etiqueta EN ESTE ARCHIVO ***
+// Lo maneja ./routes/generar-etiqueta.js a través de app.use(generarEtiquetaRouter);
 
 // 9. Catch-all para frontend SPA
 app.get('*', (req, res) => {
