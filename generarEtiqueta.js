@@ -160,47 +160,43 @@ router.post('/generar-etiqueta', async (req, res) => {
       }
     }
 
-    // 12. Registro en la tabla trackings SOLO si existe tracking_code
-    if (tracking_code) {
-      try {
-        await pool.query(
-          `INSERT INTO trackings (
-            order_id, tracking_code, status, carrier, shipment_id,
-            carrier_service, shipment_cost, shipment_currency, public_url, created_at, updated_at
-          )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now(), now())
-          ON CONFLICT (tracking_code) DO UPDATE SET
-            order_id = EXCLUDED.order_id,
-            status = EXCLUDED.status,
-            carrier = EXCLUDED.carrier,
-            shipment_id = EXCLUDED.shipment_id,
-            carrier_service = EXCLUDED.carrier_service,
-            shipment_cost = EXCLUDED.shipment_cost,
-            shipment_currency = EXCLUDED.shipment_currency,
-            public_url = EXCLUDED.public_url,
-            updated_at = now()
-          `,
-          [
-            order_id,
-            tracking_code,
-            status,
-            carrier,
-            shipment_id,
-            carrier_service,
-            shipment_cost,
-            shipment_currency,
-            public_url
-          ]
-        );
-        console.log(`[EasyPost] Tracking registrado: ${tracking_code} para order_id: ${order_id}`);
-      } catch (err) {
-        console.error('Error al registrar el tracking en DB:', err.message, {
-          order_id, tracking_code, status, carrier, shipment_id, carrier_service,
-          shipment_cost, shipment_currency, public_url
-        });
-      }
-    } else {
-      console.error('No hay tracking_code disponible todavía, el tracking se insertará vía webhook.');
+    // 12. Registro en la tabla trackings SIEMPRE tras compra de etiqueta
+    try {
+      await pool.query(
+        `INSERT INTO trackings (
+          order_id, tracking_code, status, carrier, shipment_id,
+          carrier_service, shipment_cost, shipment_currency, public_url, created_at, updated_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now(), now())
+        ON CONFLICT (tracking_code) DO UPDATE SET
+          order_id = EXCLUDED.order_id,
+          status = EXCLUDED.status,
+          carrier = EXCLUDED.carrier,
+          shipment_id = EXCLUDED.shipment_id,
+          carrier_service = EXCLUDED.carrier_service,
+          shipment_cost = EXCLUDED.shipment_cost,
+          shipment_currency = EXCLUDED.shipment_currency,
+          public_url = EXCLUDED.public_url,
+          updated_at = now()
+        `,
+        [
+          order_id,
+          tracking_code,
+          status,
+          carrier,
+          shipment_id,
+          carrier_service,
+          shipment_cost,
+          shipment_currency,
+          public_url
+        ]
+      );
+      console.log(`[EasyPost] Tracking registrado: ${tracking_code} para order_id: ${order_id} con costo: ${shipment_cost} ${shipment_currency}`);
+    } catch (err) {
+      console.error('Error al registrar el tracking en DB:', err.message, {
+        order_id, tracking_code, status, carrier, shipment_id, carrier_service,
+        shipment_cost, shipment_currency, public_url
+      });
     }
 
     // 13. Devolver respuesta
