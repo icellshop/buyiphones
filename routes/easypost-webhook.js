@@ -1,7 +1,7 @@
 const express = require('express');
 const crypto = require('crypto');
 const router = express.Router();
-const pool = require('../db');
+const pool = require('../db'); // Ajusta el path si es distinto
 const EASYPOST_SECRET = process.env.EASYPOST_WEBHOOK_SECRET;
 
 // Middleware para capturar el raw body
