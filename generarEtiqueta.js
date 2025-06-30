@@ -50,7 +50,7 @@ router.post('/validar-direccion', async (req, res) => {
   }
 });
 
-// Endpoint para generar etiqueta con EasyPost, enviar por email, devolver PDF y registrar la orden
+// Endpoint para generar etiqueta con EasyPost, enviar por email, devolver PDF y registrar la orden y el tracking
 router.post('/generar-etiqueta', async (req, res) => {
   try {
     // 1. Preparar direcciones y parcel para EasyPost
@@ -103,6 +103,15 @@ router.post('/generar-etiqueta', async (req, res) => {
     }
     shipment = await api.Shipment.buy(shipment.id, rate);
 
+    // Extrae detalles importantes para guardar en DB
+    const tracking_code = shipment.tracking_code;
+    const shipment_id = shipment.id;
+    const status = shipment.status;
+    const carrier = shipment.selected_rate?.carrier || rate.carrier;
+    const carrier_service = shipment.selected_rate?.service || rate.service;
+    const shipment_cost = Number(shipment.selected_rate?.rate || rate.rate);
+    const shipment_currency = shipment.selected_rate?.currency || rate.currency;
+
     // 4. Email del destinatario y URL de la etiqueta (PNG normalmente)
     const destinatario = toAddress.email;
     const labelUrl = shipment.postage_label.label_url;
@@ -142,18 +151,53 @@ router.post('/generar-etiqueta', async (req, res) => {
         orderResult = await pool.query(
           `INSERT INTO orders (offer_history_id, status, tracking_code, label_url, shipped_at, created_at, updated_at) 
            VALUES ($1, $2, $3, $4, $5, now(), now()) RETURNING *`,
-          [offerHistoryId, 'awaiting_shipment', shipment.tracking_code, shipment.postage_label.label_url, null]
+          [offerHistoryId, 'awaiting_shipment', tracking_code, shipment.postage_label.label_url, null]
         );
       } catch (err) {
         console.error('Error al registrar la orden en DB:', err.message);
       }
     }
 
-    // 11. Devolver respuesta
+    // 11. Registro/actualización en la tabla trackings (guarda costos y servicio)
+    try {
+      await pool.query(
+        `INSERT INTO trackings (
+          order_id, tracking_code, status, carrier, shipment_id,
+          carrier_service, shipment_cost, shipment_currency, public_url, created_at, updated_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now(), now())
+        ON CONFLICT (tracking_code) DO UPDATE SET
+          order_id = EXCLUDED.order_id,
+          status = EXCLUDED.status,
+          carrier = EXCLUDED.carrier,
+          shipment_id = EXCLUDED.shipment_id,
+          carrier_service = EXCLUDED.carrier_service,
+          shipment_cost = EXCLUDED.shipment_cost,
+          shipment_currency = EXCLUDED.shipment_currency,
+          public_url = EXCLUDED.public_url,
+          updated_at = now()
+        `,
+        [
+          orderResult && orderResult.rows ? orderResult.rows[0].id : null,
+          tracking_code,
+          status,
+          carrier,
+          shipment_id,
+          carrier_service,
+          shipment_cost,
+          shipment_currency,
+          shipment.public_url || null
+        ]
+      );
+    } catch (err) {
+      console.error('Error al registrar el tracking en DB:', err.message);
+    }
+
+    // 12. Devolver respuesta
     res.json({
       status: 'success',
       label_url: shipment.postage_label ? shipment.postage_label.label_url : null,
-      tracking_code: shipment.tracking_code || null,
+      tracking_code: tracking_code || null,
       shipment,
       order: orderResult && orderResult.rows ? orderResult.rows[0] : null,
     });
