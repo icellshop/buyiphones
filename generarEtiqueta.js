@@ -200,7 +200,7 @@ router.post('/generar-etiqueta', async (req, res) => {
         ]
       );
       // UPDATE SIEMPRE (para asegurar que los campos importantes quedan)
-      await pool.query(
+      const updateResult = await pool.query(
         `UPDATE trackings
          SET order_id = $1,
              status = $2,
@@ -225,7 +225,7 @@ router.post('/generar-etiqueta', async (req, res) => {
           tracking_code
         ]
       );
-      console.error('FORZADO UPDATE en trackings con shipment_cost:', shipment_cost, 'currency:', shipment_currency);
+      console.error('FORZADO UPDATE en trackings con shipment_cost:', shipment_cost, 'currency:', shipment_currency, 'Filas afectadas:', updateResult.rowCount);
     } catch (err) {
       console.error('Error al registrar el tracking en DB:', err.message);
     }
