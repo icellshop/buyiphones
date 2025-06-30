@@ -93,6 +93,9 @@ router.post('/generar-etiqueta', async (req, res) => {
       parcel: parcel,
     });
 
+    // Log completo del shipment creado
+    console.log('Shipment creado:', JSON.stringify(shipment, null, 2));
+
     // 3. Comprar la etiqueta (el mejor rate disponible)
     let rate;
     if (shipment && shipment.rates && shipment.rates[0]) {
@@ -103,6 +106,11 @@ router.post('/generar-etiqueta', async (req, res) => {
     }
     shipment = await api.Shipment.buy(shipment.id, rate);
 
+    // Log completo del shipment después de comprar
+    console.log('Shipment después de buy:', JSON.stringify(shipment, null, 2));
+    console.log('Rate original:', rate);
+    console.log('selected_rate:', shipment.selected_rate);
+
     // Extrae detalles importantes para guardar en DB
     const tracking_code = shipment.tracking_code;
     const shipment_id = shipment.id;
@@ -112,8 +120,8 @@ router.post('/generar-etiqueta', async (req, res) => {
     const shipment_cost = Number(shipment.selected_rate?.rate || rate.rate);
     const shipment_currency = shipment.selected_rate?.currency || rate.currency;
 
-    // LOG de los datos del shipment (aquí es donde debes poner el console.log)
-    console.log('Datos del shipment:', {
+    // LOG de los datos del shipment
+    console.log('Datos del shipment (guardado en DB):', {
       carrier,
       carrier_service,
       shipment_cost,
@@ -197,6 +205,7 @@ router.post('/generar-etiqueta', async (req, res) => {
           shipment.public_url || null
         ]
       );
+      console.log('Insert/Update en trackings ejecutado con shipment_cost:', shipment_cost, 'currency:', shipment_currency);
     } catch (err) {
       console.error('Error al registrar el tracking en DB:', err.message);
     }
