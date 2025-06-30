@@ -11,7 +11,6 @@ const pool = require('../db');
 const api = new EasyPost(process.env.EASYPOST_API_KEY);
 const router = express.Router();
 
-// Validadores
 function checkAddress(addr) {
   return (
     addr &&
@@ -27,7 +26,6 @@ function checkParcel(parcel) {
   );
 }
 
-// Endpoint para generar etiqueta y registrar orden/tracking
 router.post('/generar-etiqueta', async (req, res) => {
   try {
     const toAddress = req.body.to_address;
@@ -60,10 +58,12 @@ router.post('/generar-etiqueta', async (req, res) => {
       from_address: fromAddress,
       parcel: parcel,
     });
+
     const rate = shipment.rates && shipment.rates.length > 0 ? shipment.rates[0] : null;
     if (!rate) throw new Error('No se encontraron tarifas disponibles para el envío');
     shipment = await api.Shipment.buy(shipment.id, rate);
 
+    // Variables que necesitas para crear la orden
     const tracking_code = shipment.tracking_code;
     const label_url = shipment.postage_label ? shipment.postage_label.label_url : null;
     const carrier = (shipment.selected_rate && shipment.selected_rate.carrier) || rate.carrier;
@@ -142,7 +142,6 @@ router.post('/generar-etiqueta', async (req, res) => {
         ]
       );
     } catch (err) {
-      // Si esto falla, igual responde, pero informa
       return res.status(500).json({ status: 'error', message: 'Error insertando tracking', error: err.message });
     }
 
@@ -157,7 +156,6 @@ router.post('/generar-etiqueta', async (req, res) => {
         [orderId]
       );
     } catch (err) {
-      // No aborta, solo loguea
       console.error('Error al actualizar total_shipping_cost en orders:', err.message);
     }
 
