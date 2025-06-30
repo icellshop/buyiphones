@@ -150,28 +150,32 @@ app.post('/generar-etiqueta', async (req, res) => {
     let orderResult = null;
 
     if (!orderId && offerHistoryId) {
-      try {
-        orderResult = await pool.query(
-          `INSERT INTO orders (
-            offer_history_id, status, created_at, updated_at
-          ) VALUES ($1, $2, now(), now()) RETURNING *`,
-          [
-            offerHistoryId,
-            'awaiting_shipment'
-          ]
-        );
-        if (orderResult && orderResult.rows && orderResult.rows[0]) {
-          orderId = orderResult.rows[0].id;
-        }
-      } catch (err) {
-        return res.status(500).json({
-          status: 'error',
-          message: 'No se pudo registrar la orden en la base de datos.',
-          error: err.message,
-          details: err.detail || null
-        });
-      }
+  try {
+    orderResult = await pool.query(
+      `INSERT INTO orders (
+        offer_history_id, status, tracking_code, label_url, shipped_at, received_at, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, now(), now()) RETURNING *`,
+      [
+        offerHistoryId,
+        'awaiting_shipment',
+        tracking_code,                              // <-- Debes tener tracking_code definido antes de este insert
+        shipment.postage_label ? shipment.postage_label.label_url : null, // <-- lo mismo para shipment
+        null,                                       // shipped_at
+        null                                        // received_at
+      ]
+    );
+    if (orderResult && orderResult.rows && orderResult.rows[0]) {
+      orderId = orderResult.rows[0].id;
     }
+  } catch (err) {
+    return res.status(500).json({
+      status: 'error',
+      message: 'No se pudo registrar la orden en la base de datos.',
+      error: err.message,
+      details: err.detail || null
+    });
+  }
+}
 
     if (!orderId) {
       return res.status(400).json({
