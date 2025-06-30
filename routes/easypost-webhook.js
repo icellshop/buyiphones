@@ -1,16 +1,17 @@
 const express = require('express');
 const crypto = require('crypto');
 const router = express.Router();
-const pool = require('../db'); // Ajusta el path si es distinto
+const pool = require('../db');
 const EASYPOST_SECRET = process.env.EASYPOST_WEBHOOK_SECRET;
 
-// Middleware para capturar el raw body
+// Middleware para capturar el raw body SOLO para este router
 const rawBodySaver = (req, res, buf, encoding) => {
   if (buf && buf.length) req.rawBody = buf.toString(encoding || 'utf8');
 };
 router.use(express.json({ verify: rawBodySaver }));
 
-router.post('/api/easypost-webhook', async (req, res) => {
+// ATENCIÓN: el router debe responder a POST '/' (¡no a POST '/api/easypost-webhook'!)
+router.post('/', async (req, res) => {
   try {
     const signature = req.headers['x-hmac-signature'];
     if (!signature || !EASYPOST_SECRET) {

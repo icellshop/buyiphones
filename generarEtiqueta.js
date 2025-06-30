@@ -5,11 +5,11 @@ const path = require('path');
 const fs = require('fs');
 require('dotenv').config();
 
-const sendLabelEmail = require('./mailgun-send');
-const { imageToPDF } = require('./mailgun-send');
+const sendLabelEmail = require('../mailgun-send');
+const { imageToPDF } = require('../mailgun-send');
 
 const api = new EasyPost(process.env.EASYPOST_API_KEY);
-const pool = require('./db');
+const pool = require('../db');
 
 const router = express.Router();
 
@@ -102,7 +102,6 @@ router.post('/generar-etiqueta', async (req, res) => {
     // 3. Comprar la etiqueta (el mejor rate disponible)
     let rate;
     if (shipment && shipment.rates && shipment.rates[0]) {
-      // Puedes elegir el mejor rate según tus necesidades
       rate = shipment.rates[0];
     } else {
       throw new Error('No se encontraron rates para el envío');
@@ -142,7 +141,7 @@ router.post('/generar-etiqueta', async (req, res) => {
     const pdfPath = await imageToPDF(labelUrl);
 
     // 6. Copia a una carpeta pública para servirlo (por ejemplo, public/tmp/)
-    const publicPath = path.join(__dirname, 'public', 'tmp');
+    const publicPath = path.join(__dirname, '..', 'public', 'tmp');
     if (!fs.existsSync(publicPath)) fs.mkdirSync(publicPath, { recursive: true });
     const pdfFileName = `etiqueta_${Date.now()}.pdf`;
     const finalPdfPath = path.join(publicPath, pdfFileName);
@@ -160,7 +159,6 @@ router.post('/generar-etiqueta', async (req, res) => {
       console.error('Correo enviado a', destinatario);
     } catch (err) {
       console.error('Error enviando correo:', err);
-      // Si falla el correo, igual devuelve la etiqueta por respuesta
     }
 
     // 10. Registro en la base de datos (orders), usando offer_history_id si viene
@@ -179,39 +177,43 @@ router.post('/generar-etiqueta', async (req, res) => {
     }
 
     // 11. Registro/actualización en la tabla trackings (tracking_code como llave única)
-    try {
-      await pool.query(
-        `INSERT INTO trackings (
-          order_id, tracking_code, status, carrier, shipment_id,
-          carrier_service, shipment_cost, shipment_currency, public_url, created_at, updated_at
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now(), now())
-        ON CONFLICT (tracking_code) DO UPDATE SET
-          order_id = EXCLUDED.order_id,
-          status = EXCLUDED.status,
-          carrier = EXCLUDED.carrier,
-          shipment_id = EXCLUDED.shipment_id,
-          carrier_service = EXCLUDED.carrier_service,
-          shipment_cost = EXCLUDED.shipment_cost,
-          shipment_currency = EXCLUDED.shipment_currency,
-          public_url = EXCLUDED.public_url,
-          updated_at = now()
-        `,
-        [
-          orderResult && orderResult.rows ? orderResult.rows[0].id : null,
-          tracking_code,
-          status,
-          carrier,
-          shipment_id,
-          carrier_service,
-          shipment_cost,
-          shipment_currency,
-          public_url
-        ]
-      );
-      console.error('UPSERT en trackings (por generar-etiqueta) con shipment_cost:', shipment_cost, 'currency:', shipment_currency);
-    } catch (err) {
-      console.error('Error al registrar el tracking en DB:', err.message);
+    if (tracking_code) {
+      try {
+        await pool.query(
+          `INSERT INTO trackings (
+            order_id, tracking_code, status, carrier, shipment_id,
+            carrier_service, shipment_cost, shipment_currency, public_url, created_at, updated_at
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now(), now())
+          ON CONFLICT (tracking_code) DO UPDATE SET
+            order_id = EXCLUDED.order_id,
+            status = EXCLUDED.status,
+            carrier = EXCLUDED.carrier,
+            shipment_id = EXCLUDED.shipment_id,
+            carrier_service = EXCLUDED.carrier_service,
+            shipment_cost = EXCLUDED.shipment_cost,
+            shipment_currency = EXCLUDED.shipment_currency,
+            public_url = EXCLUDED.public_url,
+            updated_at = now()
+          `,
+          [
+            orderResult && orderResult.rows ? orderResult.rows[0].id : null,
+            tracking_code,
+            status,
+            carrier,
+            shipment_id,
+            carrier_service,
+            shipment_cost,
+            shipment_currency,
+            public_url
+          ]
+        );
+        console.error('UPSERT en trackings (por generar-etiqueta) con shipment_cost:', shipment_cost, 'currency:', shipment_currency);
+      } catch (err) {
+        console.error('Error al registrar el tracking en DB:', err.message);
+      }
+    } else {
+      console.error('No hay tracking_code disponible todavía, el tracking se insertará vía webhook.');
     }
 
     // 12. Devolver respuesta
