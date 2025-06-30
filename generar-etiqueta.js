@@ -4,8 +4,8 @@ const path = require('path');
 const fs = require('fs');
 require('dotenv').config();
 
-const sendLabelEmail = require('../mailgun-send');
-const { imageToPDF } = require('../mailgun-send');
+const sendLabelEmail = require('./mailgun-send');
+const { imageToPDF } = require('./mailgun-send');
 const pool = require('../db');
 
 const api = new EasyPost(process.env.EASYPOST_API_KEY);
