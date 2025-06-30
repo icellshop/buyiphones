@@ -1,0 +1,31 @@
+                                                                        Table "public.trackings"
+       Column        |            Type             | Collation | Nullable |                Default                | Storage  | Compression | Stats target | Description 
+---------------------+-----------------------------+-----------+----------+---------------------------------------+----------+-------------+--------------+-------------
+ id                  | integer                     |           | not null | nextval('trackings_id_seq'::regclass) | plain    |             |              | 
+ order_id            | integer                     |           |          |                                       | plain    |             |              | 
+ tracking_code       | character varying(64)       |           | not null |                                       | extended |             |              | 
+ status              | character varying(64)       |           |          |                                       | extended |             |              | 
+ status_detail       | character varying(128)      |           |          |                                       | extended |             |              | 
+ carrier             | character varying(32)       |           |          |                                       | extended |             |              | 
+ shipment_id         | character varying(64)       |           |          |                                       | extended |             |              | 
+ public_url          | text                        |           |          |                                       | extended |             |              | 
+ signed_by           | character varying(128)      |           |          |                                       | extended |             |              | 
+ is_return           | boolean                     |           |          |                                       | plain    |             |              | 
+ finalized           | boolean                     |           |          |                                       | plain    |             |              | 
+ est_delivery_date   | timestamp without time zone |           |          |                                       | plain    |             |              | 
+ weight              | numeric                     |           |          |                                       | main     |             |              | 
+ carrier_service     | character varying(128)      |           |          |                                       | extended |             |              | 
+ carrier_origin      | character varying(128)      |           |          |                                       | extended |             |              | 
+ carrier_destination | character varying(128)      |           |          |                                       | extended |             |              | 
+ created_at          | timestamp without time zone |           |          |                                       | plain    |             |              | 
+ updated_at          | timestamp without time zone |           |          |                                       | plain    |             |              | 
+ tracking_details    | jsonb                       |           |          |                                       | extended |             |              | 
+ shipment_cost       | numeric                     |           |          |                                       | main     |             |              | 
+ shipment_currency   | character varying(8)        |           |          |                                       | extended |             |              | 
+Indexes:
+    "trackings_pkey" PRIMARY KEY, btree (id)
+    "trackings_tracking_code_key" UNIQUE CONSTRAINT, btree (tracking_code)
+Foreign-key constraints:
+    "trackings_order_id_fkey" FOREIGN KEY (order_id) REFERENCES orders(id)
+Access method: heap
+
