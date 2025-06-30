@@ -52,6 +52,7 @@ router.post('/validar-direccion', async (req, res) => {
 
 // Endpoint para generar etiqueta con EasyPost, enviar por email, devolver PDF y registrar la orden y el tracking
 router.post('/generar-etiqueta', async (req, res) => {
+  console.log('ENTRANDO A /generar-etiqueta');
   try {
     // 1. Preparar direcciones y parcel para EasyPost
     const toAddress = {
@@ -85,6 +86,8 @@ router.post('/generar-etiqueta', async (req, res) => {
       height: req.body.height,
       weight: req.body.weight,
     };
+
+    console.log('Creando shipment con EasyPost', { toAddress, fromAddress, parcel });
 
     // 2. Crear el shipment en EasyPost
     let shipment = await api.Shipment.create({
@@ -219,6 +222,7 @@ router.post('/generar-etiqueta', async (req, res) => {
       order: orderResult && orderResult.rows ? orderResult.rows[0] : null,
     });
   } catch (error) {
+    console.error('ERROR EN /generar-etiqueta:', error);
     let msg = error.message;
     if (error.response && error.response.body) {
       msg = error.response.body.error || JSON.stringify(error.response.body);
