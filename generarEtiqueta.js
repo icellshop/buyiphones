@@ -113,6 +113,7 @@ router.post('/generar-etiqueta', async (req, res) => {
     const carrier = selectedRate.carrier;
     const carrier_service = selectedRate.service;
     const public_url = shipment.public_url || null;
+    const direction = req.body.direction || "to_icellshop"; // "return_to_sender" para devoluciones
 
     // DEBUG: Verifica valores antes del insert
     console.log('Antes del insert:', {
@@ -198,14 +199,14 @@ router.post('/generar-etiqueta', async (req, res) => {
       }
     }
 
-    // 12. Registro en la tabla trackings, SIN shipment_cost ni shipment_currency
+    // 12. Registro en la tabla trackings, AHORA CON shipment_cost y shipment_currency
     try {
       await pool.query(
         `INSERT INTO trackings (
           order_id, tracking_code, status, carrier, shipment_id,
-          carrier_service, public_url, created_at, updated_at
+          carrier_service, public_url, shipment_cost, shipment_currency, direction, created_at, updated_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, now(), now())
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now(), now())
         ON CONFLICT (tracking_code) DO UPDATE SET
           order_id = EXCLUDED.order_id,
           status = EXCLUDED.status,
@@ -213,6 +214,9 @@ router.post('/generar-etiqueta', async (req, res) => {
           shipment_id = EXCLUDED.shipment_id,
           carrier_service = EXCLUDED.carrier_service,
           public_url = EXCLUDED.public_url,
+          shipment_cost = EXCLUDED.shipment_cost,
+          shipment_currency = EXCLUDED.shipment_currency,
+          direction = EXCLUDED.direction,
           updated_at = now()
         `,
         [
@@ -222,17 +226,38 @@ router.post('/generar-etiqueta', async (req, res) => {
           carrier,
           shipment_id,
           carrier_service,
-          public_url
+          public_url,
+          shipment_cost,
+          shipment_currency,
+          direction
         ]
       );
       console.log(`[EasyPost] Tracking registrado: ${tracking_code} para order_id: ${order_id}`);
     } catch (err) {
       console.error('Error al registrar el tracking en DB:', err.message, {
-        order_id, tracking_code, status, carrier, shipment_id, carrier_service, public_url
+        order_id, tracking_code, status, carrier, shipment_id, carrier_service, public_url,
+        shipment_cost, shipment_currency, direction
       });
     }
 
-    // 13. Devolver respuesta
+    // 13. Actualiza el total_shipping_cost en orders
+    if (order_id) {
+      try {
+        await pool.query(
+          `UPDATE orders
+           SET total_shipping_cost = (
+             SELECT COALESCE(SUM(shipment_cost),0) FROM trackings WHERE order_id = $1
+           )
+           WHERE id = $1
+          `,
+          [order_id]
+        );
+      } catch (err) {
+        console.error('Error al actualizar total_shipping_cost en orders:', err.message);
+      }
+    }
+
+    // 14. Devolver respuesta
     res.json({
       status: 'success',
       label_url: shipment.postage_label ? shipment.postage_label.label_url : null,

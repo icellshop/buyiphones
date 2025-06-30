@@ -98,17 +98,19 @@ app.post('/validar-direccion', async (req, res) => {
   }
 });
 
-// 8. Endpoint para generar etiqueta
+// 8. Endpoint para generar etiqueta (ahora insertando en trackings)
 app.post('/generar-etiqueta', async (req, res) => {
   try {
     const toAddress = req.body.to_address;
     const fromAddress = req.body.from_address;
     const parcel = req.body.parcel;
+    const orderId = req.body.order_id; // Debe venir del frontend o asociarse de alguna manera
+    const direction = req.body.direction || "to_icellshop"; // "return_to_sender" para devoluciones
 
-    if (!toAddress || !fromAddress || !parcel) {
+    if (!toAddress || !fromAddress || !parcel || !orderId) {
       return res.status(400).json({
         status: 'error',
-        message: 'Faltan campos obligatorios: to_address, from_address o parcel'
+        message: 'Faltan campos obligatorios: to_address, from_address, parcel u order_id'
       });
     }
 
@@ -139,15 +141,13 @@ app.post('/generar-etiqueta', async (req, res) => {
     const shipment_currency = selectedRate ? selectedRate.currency : null;
 
     // Debug log antes del insert
-    console.log('Antes del insert:', {
+    console.log('Antes de insertar en trackings:', {
       shipment_cost,
       shipment_currency,
-      offerHistoryId: req.body.offer_history_id,
+      orderId,
       tracking_code: shipment.tracking_code,
       labelUrl: shipment.postage_label.label_url
     });
-    console.log('selected_rate después del buy:', shipment.selected_rate);
-    console.log('rate usado para comprar:', rate);
 
     // --- ENVÍA EL CORREO AUTOMATICAMENTE ---
     let emailResult = null;
@@ -165,30 +165,45 @@ app.post('/generar-etiqueta', async (req, res) => {
       emailResult = { error: true, details: mailError.message };
     }
 
-    // REGISTRA LA ORDEN EN LA BASE DE DATOS SI offer_history_id VIENE
-    const offerHistoryId = req.body.offer_history_id || null;
-    let orderResult = null;
-    if (offerHistoryId) {
-      try {
-        orderResult = await pool.query(
-          `INSERT INTO orders (
-            offer_history_id, status, tracking_code, label_url, shipped_at, 
-            shipment_cost, shipment_currency, created_at, updated_at
-          ) 
-          VALUES ($1, $2, $3, $4, $5, $6, $7, now(), now()) RETURNING *`,
-          [
-            offerHistoryId,
-            'awaiting_shipment',
-            shipment.tracking_code,
-            shipment.postage_label.label_url,
-            null,
-            shipment_cost,
-            shipment_currency
-          ]
-        );
-      } catch (err) {
-        console.error('Error al registrar la orden en DB:', err.message);
-      }
+    // REGISTRA EL TRACKING EN LA BASE DE DATOS
+    let trackingResult = null;
+    try {
+      trackingResult = await pool.query(
+        `INSERT INTO trackings (
+            order_id, tracking_code, status, carrier, shipment_id, carrier_service, public_url,
+            shipment_cost, shipment_currency, direction, created_at, updated_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now(), now())
+          RETURNING *`,
+        [
+          orderId,
+          shipment.tracking_code,
+          shipment.status,
+          shipment.carrier,
+          shipment.id,
+          selectedRate && selectedRate.service ? selectedRate.service : null,
+          shipment.postage_label && shipment.postage_label.label_url ? shipment.postage_label.label_url : null,
+          shipment_cost,
+          shipment_currency,
+          direction
+        ]
+      );
+    } catch (err) {
+      console.error('Error al registrar el tracking en DB:', err.message);
+    }
+
+    // Actualiza el total_shipping_cost en orders
+    try {
+      await pool.query(
+        `UPDATE orders
+         SET total_shipping_cost = (
+           SELECT COALESCE(SUM(shipment_cost),0) FROM trackings WHERE order_id = $1
+         )
+         WHERE id = $1
+        `,
+        [orderId]
+      );
+    } catch (err) {
+      console.error('Error al actualizar total_shipping_cost en orders:', err.message);
     }
 
     res.json({
@@ -196,7 +211,7 @@ app.post('/generar-etiqueta', async (req, res) => {
       label_url: shipment.postage_label ? shipment.postage_label.label_url : null,
       tracking_code: shipment.tracking_code || null,
       shipment,
-      order: orderResult && orderResult.rows ? orderResult.rows[0] : null,
+      tracking: trackingResult && trackingResult.rows ? trackingResult.rows[0] : null,
       email_result: emailResult
     });
   } catch (error) {
