@@ -52,7 +52,7 @@ router.post('/validar-direccion', async (req, res) => {
 
 // Endpoint para generar etiqueta con EasyPost, enviar por email, devolver PDF y registrar la orden y el tracking
 router.post('/generar-etiqueta', async (req, res) => {
-  console.log('ENTRANDO A /generar-etiqueta');
+  console.error('ENTRANDO A /generar-etiqueta');
   try {
     // 1. Preparar direcciones y parcel para EasyPost
     const toAddress = {
@@ -87,7 +87,7 @@ router.post('/generar-etiqueta', async (req, res) => {
       weight: req.body.weight,
     };
 
-    console.log('Creando shipment con EasyPost', { toAddress, fromAddress, parcel });
+    console.error('Creando shipment con EasyPost', { toAddress, fromAddress, parcel });
 
     // 2. Crear el shipment en EasyPost
     let shipment = await api.Shipment.create({
@@ -97,7 +97,7 @@ router.post('/generar-etiqueta', async (req, res) => {
     });
 
     // Log completo del shipment creado
-    console.log('Shipment creado:', JSON.stringify(shipment, null, 2));
+    console.error('Shipment creado:', JSON.stringify(shipment, null, 2));
 
     // 3. Comprar la etiqueta (el mejor rate disponible)
     let rate;
@@ -110,9 +110,9 @@ router.post('/generar-etiqueta', async (req, res) => {
     shipment = await api.Shipment.buy(shipment.id, rate);
 
     // Log completo del shipment después de comprar
-    console.log('Shipment después de buy:', JSON.stringify(shipment, null, 2));
-    console.log('Rate original:', rate);
-    console.log('selected_rate:', shipment.selected_rate);
+    console.error('Shipment después de buy:', JSON.stringify(shipment, null, 2));
+    console.error('Rate original:', rate);
+    console.error('selected_rate:', shipment.selected_rate);
 
     // Extrae detalles importantes para guardar en DB
     const tracking_code = shipment.tracking_code;
@@ -124,7 +124,7 @@ router.post('/generar-etiqueta', async (req, res) => {
     const shipment_currency = shipment.selected_rate?.currency || rate.currency;
 
     // LOG de los datos del shipment
-    console.log('Datos del shipment (guardado en DB):', {
+    console.error('Datos del shipment (guardado en DB):', {
       carrier,
       carrier_service,
       shipment_cost,
@@ -156,7 +156,7 @@ router.post('/generar-etiqueta', async (req, res) => {
     // 9. Envía el correo con el PDF adjunto (finalPdfPath)
     try {
       await sendLabelEmail(destinatario, subject, text, finalPdfPath);
-      console.log('Correo enviado a', destinatario);
+      console.error('Correo enviado a', destinatario);
     } catch (err) {
       console.error('Error enviando correo:', err);
       // Si falla el correo, igual devuelve la etiqueta por respuesta
@@ -208,7 +208,7 @@ router.post('/generar-etiqueta', async (req, res) => {
           shipment.public_url || null
         ]
       );
-      console.log('Insert/Update en trackings ejecutado con shipment_cost:', shipment_cost, 'currency:', shipment_currency);
+      console.error('Insert/Update en trackings ejecutado con shipment_cost:', shipment_cost, 'currency:', shipment_currency);
     } catch (err) {
       console.error('Error al registrar el tracking en DB:', err.message);
     }
