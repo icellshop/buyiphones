@@ -160,7 +160,7 @@ router.post('/generar-etiqueta', async (req, res) => {
       }
     }
 
-    // 12. Registro/actualización en la tabla trackings (tracking_code como llave única)
+    // 12. Registro en la tabla trackings SOLO si existe tracking_code
     if (tracking_code) {
       try {
         await pool.query(
@@ -192,8 +192,12 @@ router.post('/generar-etiqueta', async (req, res) => {
             public_url
           ]
         );
+        console.log(`[EasyPost] Tracking registrado: ${tracking_code} para order_id: ${order_id}`);
       } catch (err) {
-        console.error('Error al registrar el tracking en DB:', err.message);
+        console.error('Error al registrar el tracking en DB:', err.message, {
+          order_id, tracking_code, status, carrier, shipment_id, carrier_service,
+          shipment_cost, shipment_currency, public_url
+        });
       }
     } else {
       console.error('No hay tracking_code disponible todavía, el tracking se insertará vía webhook.');
