@@ -162,7 +162,7 @@ router.post('/generar-etiqueta', async (req, res) => {
             shipment_currency,
             created_at,
             updated_at
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, now(), now()) RETURNING *`,
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
           [
             offerHistoryId,              // $1
             'awaiting_shipment',         // $2
