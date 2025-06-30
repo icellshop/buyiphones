@@ -102,7 +102,7 @@ router.post('/generar-etiqueta', async (req, res) => {
     }
     shipment = await api.Shipment.buy(shipment.id, rate);
 
-    // 4. Extraer datos para DB, asegurando que existan los valores
+    // 4. Extraer datos para DB, asegurando que existan los valores correctos
     const tracking_code = shipment.tracking_code;
     const shipment_id = shipment.id;
     const status = shipment.status;
@@ -153,18 +153,24 @@ router.post('/generar-etiqueta', async (req, res) => {
       try {
         orderResult = await pool.query(
           `INSERT INTO orders (
-              offer_history_id, status, tracking_code, label_url, shipped_at,
-              created_at, updated_at, shipment_cost, shipment_currency
-            ) 
-           VALUES ($1, $2, $3, $4, $5, $6, $7, now(), now()) RETURNING *`,
-          [
-            offerHistoryId,
-            'awaiting_shipment',
+            offer_history_id,
+            status,
             tracking_code,
-            shipment.postage_label.label_url,
-            null,
+            label_url,
+            shipped_at,
             shipment_cost,
-            shipment_currency
+            shipment_currency,
+            created_at,
+            updated_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, now(), now()) RETURNING *`,
+          [
+            offerHistoryId,              // $1
+            'awaiting_shipment',         // $2
+            tracking_code,               // $3
+            shipment.postage_label.label_url, // $4
+            null,                        // $5 (shipped_at)
+            shipment_cost,               // $6
+            shipment_currency            // $7
           ]
         );
         if (orderResult && orderResult.rows && orderResult.rows[0]) {

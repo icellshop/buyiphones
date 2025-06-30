@@ -1,0 +1,23 @@
+                                                                         Table "public.orders"
+      Column       |            Type             | Collation | Nullable |                Default                 | Storage  | Compression | Stats target | Description 
+-------------------+-----------------------------+-----------+----------+----------------------------------------+----------+-------------+--------------+-------------
+ id                | integer                     |           | not null | nextval('orders_id_seq'::regclass)     | plain    |             |              | 
+ offer_history_id  | integer                     |           |          |                                        | plain    |             |              | 
+ status            | character varying(30)       |           | not null | 'awaiting_shipment'::character varying | extended |             |              | 
+ tracking_code     | character varying(100)      |           |          |                                        | extended |             |              | 
+ label_url         | text                        |           |          |                                        | extended |             |              | 
+ shipped_at        | timestamp without time zone |           |          |                                        | plain    |             |              | 
+ received_at       | timestamp without time zone |           |          |                                        | plain    |             |              | 
+ created_at        | timestamp without time zone |           |          | now()                                  | plain    |             |              | 
+ updated_at        | timestamp without time zone |           |          | now()                                  | plain    |             |              | 
+ shipment_cost     | numeric                     |           |          |                                        | main     |             |              | 
+ shipment_currency | character varying(8)        |           |          |                                        | extended |             |              | 
+Indexes:
+    "orders_pkey" PRIMARY KEY, btree (id)
+Foreign-key constraints:
+    "orders_offer_history_id_fkey" FOREIGN KEY (offer_history_id) REFERENCES offers_history(id)
+Referenced by:
+    TABLE "payments" CONSTRAINT "payments_order_id_fkey" FOREIGN KEY (order_id) REFERENCES orders(id)
+    TABLE "trackings" CONSTRAINT "trackings_order_id_fkey" FOREIGN KEY (order_id) REFERENCES orders(id)
+Access method: heap
+
