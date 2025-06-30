@@ -154,7 +154,7 @@ router.post('/generar-etiqueta', async (req, res) => {
         orderResult = await pool.query(
           `INSERT INTO orders (
               offer_history_id, status, tracking_code, label_url, shipped_at,
-              shipment_cost, shipment_currency, created_at, updated_at
+              created_at, updated_at, shipment_cost, shipment_currency
             ) 
            VALUES ($1, $2, $3, $4, $5, $6, $7, now(), now()) RETURNING *`,
           [
