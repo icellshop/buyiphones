@@ -4,8 +4,7 @@ const path = require('path');
 const fs = require('fs');
 require('dotenv').config();
 
-const sendLabelEmail = require('./mailgun-send');
-const { imageToPDF } = require('./mailgun-send');
+const { sendLabelEmail, imageToPDF } = require('./mailgun-send');
 const pool = require('./db');
 
 const api = new EasyPost(process.env.EASYPOST_API_KEY);
@@ -168,14 +167,14 @@ router.post('/generar-etiqueta', async (req, res) => {
       const subject = "Tu etiqueta de envío ICellShop";
       const text = "Adjuntamos tu etiqueta para enviar el paquete a ICellShop. Imprímela y pégala en tu paquete.";
       if (label_url) {
+        // Convertir la URL de la etiqueta a PDF (temporal)
         const pdfPath = await imageToPDF(label_url);
-        const publicPath = path.join(__dirname, '..', 'public', 'tmp');
-        if (!fs.existsSync(publicPath)) fs.mkdirSync(publicPath, { recursive: true });
-        const pdfFileName = `etiqueta_${Date.now()}.pdf`;
-        const finalPdfPath = path.join(publicPath, pdfFileName);
-        fs.copyFileSync(pdfPath, finalPdfPath);
+        // Leer el buffer del PDF generado
+        const pdfBuffer = fs.readFileSync(pdfPath);
+        // Eliminar el archivo temporal
         fs.unlinkSync(pdfPath);
-        emailResult = await sendLabelEmail(destinatario, subject, text, finalPdfPath);
+        // Enviar correo con el buffer del PDF adjunto
+        emailResult = await sendLabelEmail(destinatario, subject, text, null, pdfBuffer);
       }
     } catch (mailError) {
       emailResult = { error: true, details: mailError.message };
