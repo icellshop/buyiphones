@@ -14,6 +14,7 @@ const offersCatalogRouter = require('./offerscatalog');
 const pool = require('./db');
 const easypostWebhook = require('./routes/easypost-webhook');
 const generarEtiquetaRouter = require('./generar-etiqueta');
+const { sendLabelEmail, router: mailgunRouter } = require('./mailgun-send');
 
 // 1. SOLO EL WEBHOOK SIN json() ANTES (para poder usar rawBody en easypostWebhook)
 app.use('/api/easypost-webhook', easypostWebhook);

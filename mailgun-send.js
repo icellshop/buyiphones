@@ -4,8 +4,6 @@ const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-
-// Si usas Express, trae el router:
 const express = require('express');
 const router = express.Router();
 
@@ -69,9 +67,8 @@ async function sendLabelEmail(to, subject, text, labelUrl) {
   const stats = fs.statSync(attachmentPath);
   console.log('PDF generado:', attachmentPath, 'Tamaño:', stats.size);
 
-  // Crea el Attachment correctamente
   const attachment = new mg.Attachment({
-    data: fs.readFileSync(attachmentPath), // Usa el buffer directamente
+    data: fs.readFileSync(attachmentPath),
     filename: 'etiqueta.pdf',
     contentType: 'application/pdf'
   });
@@ -89,10 +86,9 @@ async function sendLabelEmail(to, subject, text, labelUrl) {
     subject,
     text: `${text}\n\nEtiqueta: ${labelUrl}`,
     html,
-    attachment // No es array, es Attachment directo
+    attachment
   };
 
-  // LOG para depuración
   console.log('Enviando mail a:', to, 'con adjunto:', attachment.filename);
 
   return new Promise((resolve, reject) => {
@@ -130,7 +126,7 @@ router.post('/api/send-contact', async (req, res) => {
 
   const mailData = {
     from: `Contact Form <no-reply@${DOMAIN}>`,
-    to: 'contacto@icellshop.mx', 
+    to: 'contacto@icellshop.mx',
     subject: `[Contact] ${subject}`,
     text: `
       Name: ${name}
@@ -151,7 +147,8 @@ router.post('/api/send-contact', async (req, res) => {
   }
 });
 
-// Exporta funciones y router para Express
-module.exports = sendLabelEmail;
-module.exports.imageToPDF = imageToPDF;
-module.exports.router = router;
+module.exports = {
+  sendLabelEmail,
+  imageToPDF,
+  router
+};
