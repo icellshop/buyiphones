@@ -42,6 +42,8 @@
       padding: 0 22px;
       height: 52px;
       border-bottom: 1px solid #eee;
+      position: relative;
+      z-index: 1000;
     }
     .nav-brand {
       display: flex;
@@ -58,6 +60,8 @@
     .nav-links {
       display: flex;
       gap: 25px;
+      transition: max-height 0.3s ease;
+      align-items: center;
     }
     .nav-links a {
       text-decoration: none;
@@ -72,24 +76,54 @@
     .nav-links a.active {
       color: var(--primary);
     }
-    .nav-actions {
-      display: flex;
-      align-items: center;
-      gap: 20px;
-    }
-    .nav-actions button {
-      background: #222;
-      color: #fff;
-      border: none;
-      border-radius: 7px;
-      padding: 7px 18px;
+    .btn-link {
+      text-decoration: none;
       font-size: 15px;
-      cursor: pointer;
-      margin-left: 6px;
-      transition: background 0.18s;
+      font-weight: 500;
+      color: white;
+      background: #222;
+      padding: 8px 16px;
+      border-radius: 6px;
+      display: inline-block;
+      margin-top: 10px;
+      transition: background 0.2s;
+      text-align: center;
     }
-    .nav-actions button:hover {
+    .btn-link:hover {
       background: #444;
+    }
+    .btn-link.primary {
+      background: #0071e3;
+      color: #fff;
+    }
+    .btn-link.primary:hover {
+      background: #005bb5;
+    }
+    .hamburger {
+      display: none;
+      flex-direction: column;
+      cursor: pointer;
+      width: 25px;
+      height: 20px;
+      justify-content: space-between;
+    }
+    .hamburger span {
+      height: 3px;
+      background: #333;
+      border-radius: 3px;
+      transition: 0.3s;
+    }
+    .nav-mobile-open .nav-links {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      background: #fff;
+      position: absolute;
+      top: 52px;
+      left: 0;
+      padding: 15px 20px;
+      border-top: 1px solid #eee;
+      z-index: 999;
     }
     main {
       max-width: 980px;
@@ -179,10 +213,39 @@
     }
     .summary-btn:hover { background: var(--accent-hover);}
     #contacto-error { margin-top: 0; }
-    @media (max-width: 700px) {
+    @media (max-width: 768px) {
+      .hamburger {
+        display: flex;
+      }
+      .nav-links {
+        display: none;
+      }
+      .nav-bar.nav-mobile-open .nav-links {
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        background: #fff;
+        position: absolute;
+        top: 52px;
+        left: 0;
+        padding: 15px 20px;
+        border-top: 1px solid #eee;
+      }
+      .btn-link {
+        width: 100%;
+        box-sizing: border-box;
+        margin-top: 12px;
+      }
       .container { max-width: 99vw; }
-      .nav-bar { flex-direction: column; align-items: flex-start; height: auto; padding: 11px 10px; gap: 8px; }
-      .nav-links { gap: 13px; }
+    }
+    @media (min-width: 769px) {
+      .btn-link {
+        margin-left: 10px;
+        margin-top: 0;
+      }
+      .nav-links {
+        flex-direction: row;
+      }
     }
   </style>
 </head>
@@ -190,21 +253,24 @@
   <div class="alert-bar">
     We are your best option to sell a device. We pay higher and faster!
   </div>
-  <nav class="nav-bar">
+  <nav class="nav-bar" id="navbar">
     <span class="nav-brand">
       <img src="https://upload.wikimedia.org/wikipedia/commons/f/fa/Apple_logo_black.svg" alt="iCellShop Logo">
       iCellShop
     </span>
+    <div class="hamburger" id="hamburger" aria-label="Toggle navigation menu" role="button" tabindex="0">
+      <span></span>
+      <span></span>
+      <span></span>
+    </div>
     <div class="nav-links">
       <a href="/">Home</a>
       <a href="/sell-device" class="active">Sell device</a>
       <a href="/contact">Contact us</a>
       <a href="wholesale">Wholesale</a>
       <a href="we-are">Who are we?</a>
-    </div>
-    <div class="nav-actions">
-      <button>Iniciar sesión</button>
-      <button style="background:#0071e3;">Regístrate</button>
+      <a href="/login" class="btn-link">Iniciar sesión</a>
+      <a href="/register" class="btn-link primary">Regístrate</a>
     </div>
   </nav>
   <main>
@@ -214,6 +280,30 @@
     </div>
   </main>
   <script>
+    // Menú hamburguesa adaptado igual que el primer HTML
+    const hamburger = document.getElementById("hamburger");
+    const navbar = document.getElementById("navbar");
+    const links = document.querySelectorAll(".nav-links a");
+
+    hamburger.addEventListener("click", () => {
+      navbar.classList.toggle("nav-mobile-open");
+    });
+
+    hamburger.addEventListener("keypress", (e) => {
+      if (e.key === "Enter") {
+        navbar.classList.toggle("nav-mobile-open");
+      }
+    });
+
+    // Cierra el menú al hacer clic en un enlace si está abierto
+    links.forEach(link => {
+      link.addEventListener("click", () => {
+        if (navbar.classList.contains("nav-mobile-open")) {
+          navbar.classList.remove("nav-mobile-open");
+        }
+      });
+    });
+
     // ========== JS INICIO ==========
     const ENDPOINT = "/api/offers-catalog";
     if (!window.formState) window.formState = {
