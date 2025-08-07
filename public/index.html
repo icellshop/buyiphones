@@ -1,26 +1,28 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>iCellShop - iPhone Landing</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
     :root {
       --primary: #0066cc;
       --secondary: #f5f5f7;
       --nav-color: #333;
       --btn-radius: 24px;
-      --btn-shadow: 0 2px 6px rgba(0,0,0,0.10);
+      --btn-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
       --header-font: 'SF Pro Display', Arial, sans-serif;
       --text-main: #1d1d1f;
       --text-light: #86868b;
     }
+
     body {
       margin: 0;
       background: var(--secondary);
       font-family: var(--header-font);
       color: var(--text-main);
     }
+
     .alert-bar {
       width: 100%;
       background: #ededf0;
@@ -29,6 +31,7 @@
       padding: 10px 0;
       color: #444;
     }
+
     .nav-bar {
       display: flex;
       align-items: center;
@@ -37,7 +40,10 @@
       padding: 0 22px;
       height: 52px;
       border-bottom: 1px solid #eee;
+      position: relative;
+      z-index: 1000;
     }
+
     .nav-brand {
       display: flex;
       align-items: center;
@@ -45,15 +51,19 @@
       font-size: 23px;
       letter-spacing: -1px;
     }
+
     .nav-brand img {
       width: 30px;
       margin-right: 8px;
       vertical-align: middle;
     }
+
     .nav-links {
       display: flex;
       gap: 25px;
+      transition: max-height 0.3s ease;
     }
+
     .nav-links a {
       text-decoration: none;
       color: var(--nav-color);
@@ -63,56 +73,102 @@
       transition: color 0.17s;
       position: relative;
     }
+
     .nav-links a:hover,
     .nav-links a.active {
       color: var(--primary);
     }
+
     .nav-actions {
       display: flex;
       align-items: center;
-      gap: 20px;
+      gap: 10px;
     }
+
     .nav-actions button {
       background: #222;
       color: #fff;
       border: none;
       border-radius: 7px;
-      padding: 7px 18px;
+      padding: 7px 14px;
       font-size: 15px;
       cursor: pointer;
       margin-left: 6px;
       transition: background 0.18s;
     }
+
     .nav-actions button:hover {
       background: #444;
     }
+
+    .hamburger {
+      display: none;
+      flex-direction: column;
+      cursor: pointer;
+      width: 25px;
+      height: 20px;
+      justify-content: space-between;
+    }
+
+    .hamburger span {
+      height: 3px;
+      background: #333;
+      border-radius: 3px;
+      transition: 0.3s;
+    }
+
+    .nav-mobile-open .nav-links {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      background: #fff;
+      position: absolute;
+      top: 52px;
+      left: 0;
+      padding: 15px 20px;
+      border-top: 1px solid #eee;
+    }
+
+    .nav-mobile-open .nav-actions {
+      flex-direction: column;
+      padding: 10px 20px;
+      background: #fff;
+      width: 100%;
+    }
+
     main {
       max-width: 980px;
       margin: 0 auto;
       padding: 0 15px;
       text-align: center;
     }
+
     .hero {
       margin: 60px 0 30px 0;
     }
+
     .hero-title {
       font-size: 3rem;
       font-weight: bold;
       margin: 0 0 18px 0;
       letter-spacing: -2px;
     }
+
     .hero-desc {
       font-size: 1.48rem;
       margin-bottom: 28px;
       color: var(--text-light);
       font-weight: 400;
     }
+
     .hero-buttons {
       display: flex;
       justify-content: center;
       gap: 18px;
+      flex-wrap: wrap;
       margin-bottom: 18px;
     }
+
     .hero-buttons a {
       padding: 13px 32px;
       font-size: 1.1rem;
@@ -127,59 +183,74 @@
       outline: none;
       display: inline-block;
     }
+
     .hero-buttons a.alt {
       background: #fff;
       color: var(--primary);
       border: 1.5px solid var(--primary);
     }
+
     .hero-buttons a:hover {
       background: #005bb5;
       color: #fff;
     }
+
     .hero-buttons a.alt:hover {
       background: #eaf1fb;
       color: var(--primary);
     }
+
     .hero-ai {
       margin: 16px 0 0 0;
       font-size: 1.12rem;
       font-weight: 600;
       letter-spacing: -0.5px;
     }
+
     .hero-ai span {
       color: #0071e3;
     }
+
     .hero-ai .ai-pink {
       color: #ef57c5;
     }
+
     .hero-ai .ai-orange {
       color: #ff6a00;
     }
+
     .hero-img {
       margin: 32px auto 0 auto;
       max-width: 500px;
       width: 90vw;
       display: block;
     }
-    @media (max-width: 700px) {
+
+    @media (max-width: 768px) {
+      .hamburger {
+        display: flex;
+      }
+
+      .nav-links,
+      .nav-actions {
+        display: none;
+      }
+
+      .nav-bar.nav-mobile-open .nav-links,
+      .nav-bar.nav-mobile-open .nav-actions {
+        display: flex;
+      }
+
       .hero-title {
         font-size: 2.2rem;
       }
+
       .hero-desc {
         font-size: 1.07rem;
       }
+
       .hero-img {
         max-width: 96vw;
-      }
-      .nav-bar {
-        flex-direction: column;
-        align-items: flex-start;
-        height: auto;
-        padding: 11px 10px;
-        gap: 8px;
-      }
-      .nav-links {
-        gap: 13px;
       }
     }
   </style>
@@ -188,11 +259,19 @@
   <div class="alert-bar">
     We are your best option to sell a device. We pay higher and faster!
   </div>
-  <nav class="nav-bar">
+
+  <nav class="nav-bar" id="navbar">
     <span class="nav-brand">
-      <img src="https://upload.wikimedia.org/wikipedia/commons/f/fa/Apple_logo_black.svg" alt="iCellShop Logo">
+      <img src="https://upload.wikimedia.org/wikipedia/commons/f/fa/Apple_logo_black.svg" alt="iCellShop Logo" />
       iCellShop
     </span>
+
+    <div class="hamburger" id="hamburger" aria-label="Toggle navigation menu" role="button" tabindex="0">
+      <span></span>
+      <span></span>
+      <span></span>
+    </div>
+
     <div class="nav-links">
       <a href="/" class="active">Home</a>
       <a href="/sell-device">Sell device</a>
@@ -200,15 +279,17 @@
       <a href="#">Wholesale</a>
       <a href="#">Who are we?</a>
     </div>
+
     <div class="nav-actions">
       <button>Iniciar sesión</button>
       <button style="background:#0071e3;">Regístrate</button>
     </div>
   </nav>
+
   <main>
     <section class="hero">
       <h1 class="hero-title">Sell your device today!</h1>
-      <div class="hero-desc">Get an offer in seconds and receive your money within 24 hours!.</div>
+      <div class="hero-desc">Get an offer in seconds and receive your money within 24 hours!</div>
       <div class="hero-buttons">
         <a href="/sell-device">Get offer</a>
         <a href="#" class="alt">Shop iPhone</a>
@@ -216,8 +297,23 @@
       <div class="hero-ai">
         Built for <span class="ai-pink">Apple</span> <span class="ai-orange">Intelligence</span>.
       </div>
-      <img class="hero-img" src="https://www.apple.com/v/iphone/home/bm/images/meta/iphone__ky2k6x5u6vue_og.png" alt="iPhone 16 family">
+      <img class="hero-img" src="https://www.apple.com/v/iphone/home/bm/images/meta/iphone__ky2k6x5u6vue_og.png" alt="iPhone 16 family" />
     </section>
   </main>
+
+  <script>
+    const hamburger = document.getElementById("hamburger");
+    const navbar = document.getElementById("navbar");
+
+    hamburger.addEventListener("click", () => {
+      navbar.classList.toggle("nav-mobile-open");
+    });
+
+    hamburger.addEventListener("keypress", (e) => {
+      if (e.key === "Enter") {
+        navbar.classList.toggle("nav-mobile-open");
+      }
+    });
+  </script>
 </body>
 </html>
